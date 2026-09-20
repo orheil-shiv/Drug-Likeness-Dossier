@@ -10,7 +10,7 @@ import { RadarChart } from '@/components/RadarChart';
 import { MorganFingerprint } from '@/components/MorganFingerprint';
 import { SafetyPictograms } from '@/components/SafetyPictograms';
 import { AnalysisResult } from '@/types/chem';
-import { BENCHMARK_FALLBACKS } from '@/lib/chem-fallback';
+import { resolveClientFallback } from '@/lib/chem-fallback';
 import {
   FlaskConical,
   AlertCircle,
@@ -20,7 +20,8 @@ import {
   Activity,
   Cpu,
   Layers,
-  Database
+  Database,
+  Info
 } from 'lucide-react';
 
 export default function Home() {
@@ -29,10 +30,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState<string>('');
+  const [isFallbackMode, setIsFallbackMode] = useState<boolean>(false);
 
   const fetchAnalysis = async (searchQuery: string) => {
     setIsLoading(true);
     setErrorMessage(null);
+    setIsFallbackMode(false);
     setLoadingStep('Connecting to Cheminformatics Engine & PubChem PUG REST...');
 
     try {
@@ -45,7 +48,7 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        let errDetail = `Server error (${response.status})`;
+        let errDetail = `Server status ${response.status}`;
         try {
           const errJson = await response.json();
           errDetail = errJson.detail || errDetail;
@@ -63,13 +66,13 @@ export default function Home() {
       setAnalysisData(data);
       setQuery(searchQuery);
     } catch (err: any) {
-      console.warn('Backend query error or cold start, checking local fallback:', err);
-      // If offline or during cold start, check if query matches a known benchmark
-      const qLower = searchQuery.toLowerCase().trim();
-      if (BENCHMARK_FALLBACKS[qLower]) {
-        setAnalysisData(BENCHMARK_FALLBACKS[qLower]);
+      console.warn('Backend unreachable or cold start, activating client fallback engine:', err);
+      try {
+        const clientData = resolveClientFallback(searchQuery);
+        setAnalysisData(clientData);
         setQuery(searchQuery);
-      } else {
+        setIsFallbackMode(true);
+      } catch (fallbackErr: any) {
         setErrorMessage(err.message || 'Failed to analyze molecule');
       }
     } finally {
@@ -102,7 +105,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1 text-teal-600 dark:text-teal-400 font-semibold">
               <span className="w-2 h-2 rounded-full bg-emerald-500 led-online" />
-              ONLINE
+              {isFallbackMode ? 'STANDALONE LAB' : 'ONLINE'}
             </span>
             <span>•</span>
             <span className="flex items-center gap-1">

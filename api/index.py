@@ -2,7 +2,7 @@ import sys
 import os
 import traceback
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -16,7 +16,7 @@ from rdkit import Chem
 app = FastAPI(
     title="Cheminformatics Virtual Lab API",
     description="Bio/Cheminformatics serverless API providing RDKit molecular profiling, 2D vector depictions, 3D conformers, and publication-grade PDF dossiers.",
-    version="2.0.0"
+    version="2.1.0"
 )
 
 app.add_middleware(
@@ -28,30 +28,45 @@ app.add_middleware(
 )
 
 class AnalyzeRequest(BaseModel):
-    query: str
+    query: Optional[str] = None
 
 class ExportPdfRequest(BaseModel):
     query: Optional[str] = None
     analysis_data: Optional[dict] = None
 
-@app.get("/")
 @app.get("/health")
 @app.get("/api/health")
 def health_check():
     return {
         "status": "online",
         "service": "cheminformatics-virtual-lab-api",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "features": ["Lipinski", "Veber", "Ghose", "Morgan_FP", "ETKDGv3_3D", "ReportLab_PDF", "PubChem_PUG_REST"]
     }
 
-@app.post("/analyze")
-@app.post("/api/analyze")
-def analyze_molecule(req: AnalyzeRequest):
-    if not req.query or not req.query.strip():
-        raise HTTPException(status_code=400, detail="Query (SMILES, CAS, CID, InChI, or name) must not be empty.")
+@app.api_route("/", methods=["GET", "POST"])
+@app.api_route("/api", methods=["GET", "POST"])
+@app.api_route("/analyze", methods=["GET", "POST"])
+@app.api_route("/api/analyze", methods=["GET", "POST"])
+async def analyze_endpoint(request: Request, query: Optional[str] = None):
+    # Extract query from JSON body, URL params, or form
+    q = query
+    if not q:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                q = body.get("query")
+        except Exception:
+            pass
+
+    # If it's a GET to root with no query, return health check
+    if not q or not q.strip():
+        if request.method == "GET" and request.url.path in ["/", "/api", "/api/"]:
+            return health_check()
+        raise HTTPException(status_code=400, detail="Query parameter (SMILES, CAS, CID, InChI, or name) must not be empty.")
+
     try:
-        results = analyze_molecule_pipeline(req.query.strip())
+        results = analyze_molecule_pipeline(q.strip())
         if "radar_png_bytes" in results:
             del results["radar_png_bytes"]
         return results
@@ -59,28 +74,26 @@ def analyze_molecule(req: AnalyzeRequest):
         traceback.print_exc()
         raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/analyze")
-@app.get("/api/analyze")
-def analyze_molecule_get(query: str):
-    if not query or not query.strip():
-        raise HTTPException(status_code=400, detail="Query parameter must not be empty.")
-    try:
-        results = analyze_molecule_pipeline(query.strip())
-        if "radar_png_bytes" in results:
-            del results["radar_png_bytes"]
-        return results
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=400, detail=str(e))
+@app.api_route("/export-pdf", methods=["GET", "POST"])
+@app.api_route("/api/export-pdf", methods=["GET", "POST"])
+async def export_pdf_endpoint(request: Request, query: Optional[str] = None):
+    q = query
+    analysis_data = None
 
-@app.post("/export-pdf")
-@app.post("/api/export-pdf")
-def export_pdf(req: ExportPdfRequest):
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                analysis_data = body.get("analysis_data")
+                q = body.get("query") or q
+        except Exception:
+            pass
+
     try:
-        if req.analysis_data:
-            data = req.analysis_data
-        elif req.query and req.query.strip():
-            data = analyze_molecule_pipeline(req.query.strip())
+        if analysis_data:
+            data = analysis_data
+        elif q and q.strip():
+            data = analyze_molecule_pipeline(q.strip())
         else:
             raise HTTPException(status_code=400, detail="Either 'analysis_data' or 'query' must be provided.")
             
@@ -100,36 +113,22 @@ def export_pdf(req: ExportPdfRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
 
-@app.get("/export-pdf")
-@app.get("/api/export-pdf")
-def export_pdf_get(query: str):
-    if not query or not query.strip():
-        raise HTTPException(status_code=400, detail="Query parameter must not be empty.")
-    try:
-        data = analyze_molecule_pipeline(query.strip())
-        pdf_bytes = create_dossier_pdf(data)
-        compound_name = data.get("metadata", {}).get("name", "molecule").replace(" ", "_")
-        filename = f"{compound_name}_Cheminformatics_Dossier.pdf"
-        
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-                "Content-Type": "application/pdf"
-            }
-        )
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+@app.api_route("/structure/mol", methods=["GET", "POST"])
+@app.api_route("/api/structure/mol", methods=["GET", "POST"])
+async def export_mol_block(request: Request, query: Optional[str] = None):
+    q = query
+    if not q:
+        try:
+            body = await request.json()
+            if isinstance(body, dict):
+                q = body.get("query")
+        except Exception:
+            pass
 
-@app.get("/structure/mol")
-@app.get("/api/structure/mol")
-def export_mol_block(query: str):
-    if not query or not query.strip():
+    if not q or not q.strip():
         raise HTTPException(status_code=400, detail="Query parameter must not be empty.")
     try:
-        mol, meta = resolve_molecule(query.strip())
+        mol, meta = resolve_molecule(q.strip())
         mol_block = Chem.MolToMolBlock(mol)
         name = meta.get("name", "molecule").replace(" ", "_")
         return Response(
