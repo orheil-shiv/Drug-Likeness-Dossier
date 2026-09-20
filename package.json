@@ -1,0 +1,31 @@
+{
+  "name": "drug-likeness-lipinski-dossier",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:next": "next dev -p 3000",
+    "dev:py": "python -m uvicorn api.index:app --reload --port 8000",
+    "dev": "concurrently -n \"PY,NEXT\" -c \"cyan,green\" \"npm run dev:py\" \"npm run dev:next\"",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.428.0",
+    "next": "14.2.10",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^2.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^8.2.2",
+    "postcss": "^8.4.41",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.4"
+  }
+}
