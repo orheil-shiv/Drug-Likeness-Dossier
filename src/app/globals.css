@@ -3,8 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --background: #0b0f19;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card-bg: rgba(255, 255, 255, 0.92);
+  --card-border: #e2e8f0;
+  --card-hover: rgba(248, 250, 252, 0.98);
+  --muted: #64748b;
+  --accent-teal: #0d9488;
+  --accent-blue: #0284c7;
+}
+
+.dark {
+  --background: #0b1120;
   --foreground: #f1f5f9;
+  --card-bg: rgba(15, 23, 42, 0.85);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --card-hover: rgba(30, 41, 59, 0.95);
+  --muted: #94a3b8;
+  --accent-teal: #14b8a6;
+  --accent-blue: #38bdf8;
 }
 
 body {
@@ -12,41 +29,89 @@ body {
   background: var(--background);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-/* Glassmorphic card styling */
+/* Virtual Laboratory Millimeter Grid Background */
+.lab-grid {
+  background-size: 28px 28px;
+  background-image: 
+    linear-gradient(to right, rgba(203, 213, 225, 0.45) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(203, 213, 225, 0.45) 1px, transparent 1px);
+}
+
+.dark .lab-grid {
+  background-size: 28px 28px;
+  background-image: 
+    linear-gradient(to right, rgba(30, 41, 59, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(30, 41, 59, 0.6) 1px, transparent 1px);
+}
+
+/* Glassmorphic Laboratory Card Panels */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--card-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+}
+
+.dark .glass-panel {
+  box-shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.4);
 }
 
 .glass-panel-hover {
-  transition: all 0.2s ease-in-out;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass-panel-hover:hover {
-  background: rgba(30, 41, 59, 0.85);
-  border-color: rgba(94, 234, 212, 0.3);
-  transform: translateY(-1px);
+  background: var(--card-hover);
+  border-color: rgba(13, 148, 136, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -4px rgba(13, 148, 136, 0.12);
 }
 
-/* Custom scrollbars */
+/* Laboratory Instrument LED Pulse */
+.led-online {
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.65);
+}
+
+.led-active {
+  box-shadow: 0 0 10px rgba(13, 148, 136, 0.65);
+}
+
+.led-alert {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.65);
+}
+
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.8);
+}
+
+.dark ::-webkit-scrollbar-track {
   background: #0f172a;
 }
 
 ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
   background: #334155;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }

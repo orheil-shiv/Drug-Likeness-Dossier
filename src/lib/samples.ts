@@ -1,51 +1,59 @@
 export interface SampleMolecule {
   name: string;
   category: string;
-  smiles: string;
+  query: string;
+  type: 'name' | 'cas' | 'cid' | 'smiles' | 'inchi';
   description: string;
 }
 
 export const SAMPLE_MOLECULES: SampleMolecule[] = [
   {
     name: "Aspirin",
-    category: "NSAID / Analgesic",
-    smiles: "CC(=O)Oc1ccccc1C(=O)O",
-    description: "Classic anti-inflammatory acetylsalicylic acid. 0 Lipinski violations."
+    category: "Name Search",
+    query: "Aspirin",
+    type: "name",
+    description: "Classic acetylsalicylic acid analgesic. 0 Lipinski alerts."
   },
   {
-    name: "Caffeine",
-    category: "CNS Stimulant",
-    smiles: "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
-    description: "Methylxanthine alkaloid. Ideal oral bioavailability."
+    name: "CAS: 50-78-2",
+    category: "CAS Registry",
+    query: "50-78-2",
+    type: "cas",
+    description: "CAS registry lookup for Aspirin via PubChem."
   },
   {
-    name: "Ibuprofen",
-    category: "NSAID",
-    smiles: "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
-    description: "Non-steroidal anti-inflammatory with chiral center."
+    name: "CID: 2519",
+    category: "PubChem CID",
+    query: "2519",
+    type: "cid",
+    description: "PubChem Compound ID for Caffeine."
   },
   {
-    name: "Paracetamol",
-    category: "Analgesic",
-    smiles: "CC(=O)Nc1ccc(O)cc1",
-    description: "Acetaminophen. Widely used pain and fever medication."
+    name: "Ibuprofen SMILES",
+    category: "SMILES Code",
+    query: "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
+    type: "smiles",
+    description: "Chiral propanoic acid derivative SMILES."
   },
   {
     name: "Penicillin V",
-    category: "Beta-Lactam Antibiotic",
-    smiles: "CC1(C)S[C@@H]2[C@H](NC(=O)COc3ccccc3)C(=O)N2[C@H]1C(=O)O",
-    description: "Phenoxymethylpenicillin with fused beta-lactam thiazolidine core."
+    category: "Antibiotic",
+    query: "Penicillin V",
+    type: "name",
+    description: "Beta-lactam thiazolidine bicyclic core."
   },
   {
     name: "Atorvastatin",
-    category: "Statin / HMG-CoA",
-    smiles: "CC(C)c1c(C(=O)Nc2ccccc2)c(-c2ccccc2)c(-c2ccc(F)cc2)n1CC[C@@H](O)C[C@@H](O)CC(=O)O",
-    description: "Lipid-lowering agent. Lipinski rule boundary test compound (MW 558)."
+    category: "Statin / Ro5 Border",
+    query: "Atorvastatin",
+    type: "name",
+    description: "High molecular weight (MW 558.6) benchmark."
   },
   {
     name: "Remdesivir",
     category: "Antiviral",
-    smiles: "CCC(CC)COC(=O)[C@H](C)N[P@](=O)(OC[C@H]1O[C@](C#N)(c2ccc3n2ncnc3N)[C@H](O)[C@@H]1O)Oc1ccccc1",
-    description: "Broad-spectrum antiviral pro-drug with chiral phosphorus center."
+    query: "Remdesivir",
+    type: "name",
+    description: "Phosphoramidate prodrug with chiral phosphorus."
   }
 ];

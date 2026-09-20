@@ -1,6 +1,7 @@
 import io
 import base64
 from datetime import datetime
+from typing import Dict, Any
 
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -17,10 +18,10 @@ from reportlab.platypus import (
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 
-def create_dossier_pdf(data: dict) -> bytes:
+def create_dossier_pdf(data: Dict[str, Any]) -> bytes:
     """
-    Builds a publication-ready Drug-Likeness & Lipinski Dossier PDF
-    using ReportLab Platypus and in-memory IO buffers.
+    Builds a publication-ready Drug-Likeness & Molecular Dossier PDF
+    with Virtual Lab styling using ReportLab Platypus.
     """
     pdf_buffer = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -28,19 +29,18 @@ def create_dossier_pdf(data: dict) -> bytes:
         pagesize=letter,
         leftMargin=36,
         rightMargin=36,
-        topMargin=36,
-        bottomMargin=36
+        topMargin=32,
+        bottomMargin=32
     )
     
     styles = getSampleStyleSheet()
     
-    # Custom styles
     header_title_style = ParagraphStyle(
         'DocHeaderTitle',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=20,
-        leading=24,
+        fontSize=18,
+        leading=22,
         textColor=colors.HexColor('#0f172a'),
         alignment=TA_LEFT
     )
@@ -49,8 +49,8 @@ def create_dossier_pdf(data: dict) -> bytes:
         'DocSubtitle',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=10,
-        leading=13,
+        fontSize=9,
+        leading=12,
         textColor=colors.HexColor('#475569'),
         alignment=TA_LEFT
     )
@@ -59,19 +59,19 @@ def create_dossier_pdf(data: dict) -> bytes:
         'DocSection',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=13,
-        leading=16,
-        textColor=colors.HexColor('#1e293b'),
-        spaceBefore=10,
-        spaceAfter=6
+        fontSize=11,
+        leading=14,
+        textColor=colors.HexColor('#0f766e'),
+        spaceBefore=7,
+        spaceAfter=4
     )
     
     body_bold = ParagraphStyle(
         'DocBodyBold',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=9,
-        leading=11,
+        fontSize=8,
+        leading=10,
         textColor=colors.HexColor('#0f172a')
     )
     
@@ -79,8 +79,8 @@ def create_dossier_pdf(data: dict) -> bytes:
         'DocBodyNormal',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=8.5,
-        leading=11,
+        fontSize=7.5,
+        leading=9.5,
         textColor=colors.HexColor('#334155')
     )
     
@@ -88,8 +88,8 @@ def create_dossier_pdf(data: dict) -> bytes:
         'DocBodyCenter',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=8.5,
-        leading=11,
+        fontSize=7.5,
+        leading=9.5,
         alignment=TA_CENTER,
         textColor=colors.HexColor('#334155')
     )
@@ -98,20 +98,20 @@ def create_dossier_pdf(data: dict) -> bytes:
         'PassBadge',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=8.5,
-        leading=11,
+        fontSize=7.5,
+        leading=9.5,
         alignment=TA_CENTER,
-        textColor=colors.HexColor('#15803d')
+        textColor=colors.HexColor('#059669')
     )
     
     fail_badge_style = ParagraphStyle(
         'FailBadge',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=8.5,
-        leading=11,
+        fontSize=7.5,
+        leading=9.5,
         alignment=TA_CENTER,
-        textColor=colors.HexColor('#b91c1c')
+        textColor=colors.HexColor('#dc2626')
     )
     
     metadata = data.get("metadata", {})
@@ -119,13 +119,18 @@ def create_dossier_pdf(data: dict) -> bytes:
     depictions = data.get("depictions", {})
     lip = properties.get("lipinski", {})
     veb = properties.get("veber", {})
+    ghose = properties.get("ghose", {})
     ext = properties.get("extended", {})
+    mfp = properties.get("morgan_fp", {})
+    safety = metadata.get("safety", {})
     
-    compound_name = metadata.get("name", "Unknown Compound")
-    cid = metadata.get("cid", "N/A")
+    compound_name = metadata.get("name", "Target Molecule")
+    cid = metadata.get("cid") or "N/A"
+    cas = metadata.get("cas") or "N/A"
     formula = metadata.get("formula", "N/A")
     iupac = metadata.get("iupac_name") or "Not Specified"
     smiles = metadata.get("smiles", "")
+    inchikey = metadata.get("inchikey") or "N/A"
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
     
     story = []
@@ -133,213 +138,294 @@ def create_dossier_pdf(data: dict) -> bytes:
     # 1. Header Section
     header_data = [
         [
-            Paragraph("<b>DRUG-LIKENESS & LIPINSKI DOSSIER</b>", header_title_style),
-            Paragraph(f"<b>Generated:</b> {now_str}<br/><b>Engine:</b> RDKit / PubChem / ReportLab", ParagraphStyle('HRight', parent=subtitle_style, alignment=TA_RIGHT))
+            Paragraph("<b>CHEMINFORMATICS VIRTUAL LAB DOSSIER</b>", header_title_style),
+            Paragraph(f"<b>Generated:</b> {now_str}<br/><b>Engine:</b> RDKit 2024 / PubChem PUG REST", ParagraphStyle('HRight', parent=subtitle_style, alignment=TA_RIGHT))
         ]
     ]
-    header_table = Table(header_data, colWidths=[360, 180])
+    header_table = Table(header_data, colWidths=[350, 190])
     header_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
     ]))
     story.append(header_table)
-    story.append(Spacer(1, 4))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#2563eb'), spaceBefore=4, spaceAfter=8))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#0d9488'), spaceBefore=5, spaceAfter=8))
     
-    # 2. Executive Summary Banner
-    verdict_text = properties.get("drug_likeness_class", "Profiling Complete")
-    is_pass = properties.get("lipinski_passed", True) and properties.get("veber_passed", True)
-    banner_bg = colors.HexColor('#dcfce7') if is_pass else colors.HexColor('#fef3c7')
-    banner_border = colors.HexColor('#16a34a') if is_pass else colors.HexColor('#d97706')
-    banner_text_color = '#15803d' if is_pass else '#b45309'
+    # 2. Compound Overview Table
+    overview_data = [
+        [
+            Paragraph("<b>Compound Name:</b>", body_bold),
+            Paragraph(f"<b>{compound_name}</b>", body_normal),
+            Paragraph("<b>Formula:</b>", body_bold),
+            Paragraph(f"<b>{formula}</b>", body_normal),
+        ],
+        [
+            Paragraph("<b>PubChem CID:</b>", body_bold),
+            Paragraph(f"{cid}", body_normal),
+            Paragraph("<b>CAS Number:</b>", body_bold),
+            Paragraph(f"{cas}", body_normal),
+        ],
+        [
+            Paragraph("<b>IUPAC Name:</b>", body_bold),
+            Paragraph(f"{iupac[:75]}..." if len(iupac) > 75 else iupac, body_normal),
+            Paragraph("<b>InChIKey:</b>", body_bold),
+            Paragraph(f"{inchikey}", body_normal),
+        ],
+        [
+            Paragraph("<b>Canonical SMILES:</b>", body_bold),
+            Paragraph(f"<font name='Courier'>{smiles[:85]}...</font>" if len(smiles) > 85 else f"<font name='Courier'>{smiles}</font>", body_normal),
+            Paragraph("<b>Verdict:</b>", body_bold),
+            Paragraph(f"<b>{properties.get('drug_likeness_class', 'N/A')}</b>", body_normal),
+        ]
+    ]
     
-    banner_p = Paragraph(
-        f"<b>Verdict:</b> {verdict_text} | <b>Lipinski Rule of 5:</b> {'PASSED' if properties.get('lipinski_passed') else 'FAILED'} ({properties.get('lipinski_violations', 0)} Violations) | <b>Veber:</b> {'PASSED' if properties.get('veber_passed') else 'FAILED'}",
-        ParagraphStyle('Banner', parent=body_bold, fontSize=9.5, leading=13, textColor=colors.HexColor(banner_text_color))
-    )
-    banner_table = Table([[banner_p]], colWidths=[540])
-    banner_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), banner_bg),
-        ('BOX', (0, 0), (-1, -1), 1, banner_border),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+    overview_table = Table(overview_data, colWidths=[95, 205, 80, 160])
+    overview_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f8fafc')),
+        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor('#cbd5e1')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('LEFTPADDING', (0,0), (-1,-1), 5),
+        ('RIGHTPADDING', (0,0), (-1,-1), 5),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
     ]))
-    story.append(banner_table)
+    story.append(overview_table)
     story.append(Spacer(1, 8))
     
-    # 3. Metadata Table
-    meta_table_data = [
-        [
-            Paragraph("<b>Compound Name:</b>", body_bold), Paragraph(str(compound_name), body_normal),
-            Paragraph("<b>PubChem CID:</b>", body_bold), Paragraph(str(cid), body_normal)
-        ],
-        [
-            Paragraph("<b>Formula:</b>", body_bold), Paragraph(str(formula), body_normal),
-            Paragraph("<b>Canonical SMILES:</b>", body_bold), Paragraph(f"<font size=7>{smiles[:38] + '...' if len(smiles) > 40 else smiles}</font>", body_normal)
-        ],
-        [
-            Paragraph("<b>IUPAC Name:</b>", body_bold), Paragraph(f"<font size=7>{iupac[:65] + '...' if len(iupac) > 65 else iupac}</font>", body_normal),
-            Paragraph("<b>Heavy Atoms:</b>", body_bold), Paragraph(str(ext.get("heavy_atoms", "N/A")), body_normal)
+    # 3. Visuals: 2D Depiction & Radar Chart Side-by-Side
+    struct_img_flowable = None
+    radar_img_flowable = None
+    
+    # 2D Structure image
+    if depictions.get("skeletal"):
+        try:
+            png_bytes = base64.b64decode(depictions["skeletal"])
+            struct_buf = io.BytesIO(png_bytes)
+            struct_img_flowable = RLImage(struct_buf, width=200, height=160)
+        except Exception:
+            pass
+            
+    # Radar chart image
+    if data.get("radar_png_bytes"):
+        try:
+            radar_buf = io.BytesIO(data["radar_png_bytes"])
+            radar_img_flowable = RLImage(radar_buf, width=200, height=160)
+        except Exception:
+            pass
+    elif data.get("radar_b64"):
+        try:
+            png_bytes = base64.b64decode(data["radar_b64"])
+            radar_buf = io.BytesIO(png_bytes)
+            radar_img_flowable = RLImage(radar_buf, width=200, height=160)
+        except Exception:
+            pass
+            
+    if struct_img_flowable or radar_img_flowable:
+        visuals_data = [
+            [
+                Paragraph("<b>2D Chemical Structure (RDKit)</b>", body_center),
+                Paragraph("<b>Oral Bioavailability Radar (Normalized)</b>", body_center)
+            ],
+            [
+                struct_img_flowable if struct_img_flowable else Paragraph("2D Structure N/A", body_center),
+                radar_img_flowable if radar_img_flowable else Paragraph("Radar Chart N/A", body_center)
+            ]
         ]
-    ]
-    meta_table = Table(meta_table_data, colWidths=[95, 185, 95, 165])
-    meta_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#f1f5f9')),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    story.append(meta_table)
-    story.append(Spacer(1, 10))
+        visuals_table = Table(visuals_data, colWidths=[270, 270])
+        visuals_table.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#f1f5f9')),
+            ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor('#cbd5e1')),
+            ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 4),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ]))
+        story.append(visuals_table)
+        story.append(Spacer(1, 8))
+        
+    # 4. Rules Matrix: Lipinski Rule of 5 & Veber Rules
+    story.append(Paragraph("<b>Physicochemical Profiling & Lipinski / Veber Compliance</b>", section_heading))
     
-    # 4. Physicochemical Profile Table (Lipinski & Veber Criteria)
-    story.append(Paragraph("Physicochemical Profiling & Rule Compliance", section_heading))
-    
-    prop_rows = [
+    rules_table_data = [
         [
-            Paragraph("<b>Rule Set</b>", body_bold),
-            Paragraph("<b>Descriptor</b>", body_bold),
+            Paragraph("<b>Descriptor / Rule</b>", body_bold),
+            Paragraph("<b>Target Limit</b>", body_bold),
             Paragraph("<b>Calculated Value</b>", body_bold),
-            Paragraph("<b>Drug-Like Cutoff</b>", body_bold),
-            Paragraph("<b>Status</b>", ParagraphStyle('HCenter', parent=body_bold, alignment=TA_CENTER))
+            Paragraph("<b>Status</b>", body_bold),
+            Paragraph("<b>Cheminformatics Criterion</b>", body_bold)
+        ],
+        [
+            Paragraph("Molecular Weight (MW)", body_normal),
+            Paragraph("≤ 500.0 g/mol", body_normal),
+            Paragraph(f"{lip.get('mw', {}).get('value', 'N/A')} g/mol", body_normal),
+            Paragraph("PASS" if lip.get('mw', {}).get('passed') else "ALERT", pass_badge_style if lip.get('mw', {}).get('passed') else fail_badge_style),
+            Paragraph("Lipinski Ro5: Intestinal absorption threshold", body_normal)
+        ],
+        [
+            Paragraph("MolLogP (Octanol/Water)", body_normal),
+            Paragraph("≤ 5.0", body_normal),
+            Paragraph(f"{lip.get('logp', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if lip.get('logp', {}).get('passed') else "ALERT", pass_badge_style if lip.get('logp', {}).get('passed') else fail_badge_style),
+            Paragraph("Lipinski Ro5: Lipophilicity / permeability", body_normal)
+        ],
+        [
+            Paragraph("H-Bond Donors (HBD)", body_normal),
+            Paragraph("≤ 5", body_normal),
+            Paragraph(f"{lip.get('hbd', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if lip.get('hbd', {}).get('passed') else "ALERT", pass_badge_style if lip.get('hbd', {}).get('passed') else fail_badge_style),
+            Paragraph("Lipinski Ro5: Hydrogen bonding capacity", body_normal)
+        ],
+        [
+            Paragraph("H-Bond Acceptors (HBA)", body_normal),
+            Paragraph("≤ 10", body_normal),
+            Paragraph(f"{lip.get('hba', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if lip.get('hba', {}).get('passed') else "ALERT", pass_badge_style if lip.get('hba', {}).get('passed') else fail_badge_style),
+            Paragraph("Lipinski Ro5: Hydrogen bonding capacity", body_normal)
+        ],
+        [
+            Paragraph("Rotatable Bonds (RotB)", body_normal),
+            Paragraph("≤ 10", body_normal),
+            Paragraph(f"{veb.get('rotb', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if veb.get('rotb', {}).get('passed') else "ALERT", pass_badge_style if veb.get('rotb', {}).get('passed') else fail_badge_style),
+            Paragraph("Veber Rule: Molecular conformational flexibility", body_normal)
+        ],
+        [
+            Paragraph("Topological PSA (TPSA)", body_normal),
+            Paragraph("≤ 140.0 Å²", body_normal),
+            Paragraph(f"{veb.get('tpsa', {}).get('value', 'N/A')} Å²", body_normal),
+            Paragraph("PASS" if veb.get('tpsa', {}).get('passed') else "ALERT", pass_badge_style if veb.get('tpsa', {}).get('passed') else fail_badge_style),
+            Paragraph("Veber Rule: Epithelial cell permeation", body_normal)
         ]
     ]
     
-    rules_data = [
-        ("Lipinski", "Molecular Weight (MW)", f"{lip.get('mw', {}).get('value', 0)} g/mol", "≤ 500.0 g/mol", lip.get('mw', {}).get('passed', True)),
-        ("Lipinski", "MolLogP (Octanol/Water)", f"{lip.get('logp', {}).get('value', 0)}", "≤ 5.0", lip.get('logp', {}).get('passed', True)),
-        ("Lipinski", "H-Bond Donors (HBD)", f"{lip.get('hbd', {}).get('value', 0)}", "≤ 5", lip.get('hbd', {}).get('passed', True)),
-        ("Lipinski", "H-Bond Acceptors (HBA)", f"{lip.get('hba', {}).get('value', 0)}", "≤ 10", lip.get('hba', {}).get('passed', True)),
-        ("Veber", "Topological Polar Surface Area (TPSA)", f"{veb.get('tpsa', {}).get('value', 0)} Å²", "≤ 140.0 Å²", veb.get('tpsa', {}).get('passed', True)),
-        ("Veber", "Rotatable Bonds Count", f"{veb.get('rotb', {}).get('value', 0)}", "≤ 10", veb.get('rotb', {}).get('passed', True)),
-    ]
-    
-    table_styles = [
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f1f5f9')),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#cbd5e1')),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]
-    
-    for idx, (rset, dname, val, cutoff, passed) in enumerate(rules_data, start=1):
-        status_p = Paragraph("PASS", pass_badge_style) if passed else Paragraph("ALERT", fail_badge_style)
-        status_bg = colors.HexColor('#ecfdf5') if passed else colors.HexColor('#fef2f2')
-        table_styles.append(('BACKGROUND', (4, idx), (4, idx), status_bg))
-        prop_rows.append([
-            Paragraph(f"<font color='#64748b'>{rset}</font>", body_normal),
-            Paragraph(dname, body_normal),
-            Paragraph(f"<b>{val}</b>", body_normal),
-            Paragraph(cutoff, body_normal),
-            status_p
-        ])
-        
-    prop_table = Table(prop_rows, colWidths=[70, 190, 110, 100, 70])
-    prop_table.setStyle(TableStyle(table_styles))
-    story.append(prop_table)
-    story.append(Spacer(1, 10))
-    
-    # 5. Visualizations Panel: Skeletal, Murcko Scaffold, and Radar Chart
-    story.append(Paragraph("Molecular Architecture & Lipinski Radar Representation", section_heading))
-    
-    # Prepare Image Flowables from base64
-    skeletal_b64 = depictions.get("skeletal")
-    scaffold_b64 = depictions.get("murcko_scaffold")
-    radar_b64 = data.get("radar_b64")
-    
-    img_cells = []
-    
-    # Skeletal formula
-    if skeletal_b64:
-        skeletal_bytes = base64.b64decode(skeletal_b64)
-        skeletal_img = RLImage(io.BytesIO(skeletal_bytes), width=165, height=140)
-        img_cells.append([skeletal_img, Paragraph("<b>2D Skeletal Formula</b><br/><font color='#64748b' size=7>Standard Line-Angle</font>", body_center)])
-    else:
-        img_cells.append([Paragraph("Image not available", body_center), Paragraph("Skeletal Formula", body_center)])
-        
-    # Murcko Scaffold
-    if scaffold_b64:
-        scaffold_bytes = base64.b64decode(scaffold_b64)
-        scaffold_img = RLImage(io.BytesIO(scaffold_bytes), width=165, height=140)
-        img_cells.append([scaffold_img, Paragraph("<b>Bemis-Murcko Scaffold</b><br/><font color='#64748b' size=7>Ring Framework</font>", body_center)])
-    else:
-        img_cells.append([Paragraph("<i>Acyclic / No ring scaffold</i>", body_center), Paragraph("<b>Bemis-Murcko Scaffold</b><br/><font color='#64748b' size=7>Acyclic Molecule</font>", body_center)])
-        
-    # Radar plot
-    if radar_b64:
-        radar_bytes = base64.b64decode(radar_b64)
-        radar_img = RLImage(io.BytesIO(radar_bytes), width=165, height=140)
-        img_cells.append([radar_img, Paragraph("<b>Lipinski Radar Profile</b><br/><font color='#64748b' size=7>Normalized to 1.0 Limit</font>", body_center)])
-    else:
-        img_cells.append([Paragraph("Chart not available", body_center), Paragraph("Radar Plot", body_center)])
-        
-    fig_table_data = [
-        [img_cells[0][0], img_cells[1][0], img_cells[2][0]],
-        [img_cells[0][1], img_cells[1][1], img_cells[2][1]]
-    ]
-    fig_table = Table(fig_table_data, colWidths=[180, 180, 180])
-    fig_table.setStyle(TableStyle([
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#ffffff')),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    rules_table = Table(rules_table_data, colWidths=[125, 80, 85, 60, 190])
+    rules_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0f766e')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor('#cbd5e1')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('LEFTPADDING', (0,0), (-1,-1), 4),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
     ]))
-    story.append(fig_table)
-    story.append(Spacer(1, 10))
+    story.append(rules_table)
+    story.append(Spacer(1, 8))
     
-    # 6. Structural & Stereochemical Notes
-    story.append(Paragraph("Stereochemical & Structural Properties", section_heading))
-    chiral_count = ext.get("chiral_centers_count", 0)
-    chiral_details = ", ".join([f"Atom {c[0]} ({c[1]})" for c in ext.get("chiral_centers", [])]) if chiral_count > 0 else "None (Achiral)"
+    # 5. Ghose Filter & Extended Descriptors Side-by-Side
+    story.append(Paragraph("<b>Ghose Drug-Likeness Filter & Extended Topology</b>", section_heading))
     
-    notes_data = [
+    ghose_ext_data = [
         [
-            Paragraph("<b>Chiral Stereocenters:</b>", body_bold), Paragraph(f"{chiral_count} ({chiral_details})", body_normal),
-            Paragraph("<b>Fraction Csp3:</b>", body_bold), Paragraph(str(ext.get("fsp3", "N/A")), body_normal)
+            Paragraph("<b>Ghose Filter Property</b>", body_bold),
+            Paragraph("<b>Limit</b>", body_bold),
+            Paragraph("<b>Value</b>", body_bold),
+            Paragraph("<b>Status</b>", body_bold),
+            Paragraph("<b>Structural Metric</b>", body_bold),
+            Paragraph("<b>Value</b>", body_bold)
         ],
         [
-            Paragraph("<b>Total Ring Count:</b>", body_bold), Paragraph(str(ext.get("rings", 0)), body_normal),
-            Paragraph("<b>Aromatic Rings:</b>", body_bold), Paragraph(str(ext.get("aromatic_rings", 0)), body_normal)
+            Paragraph("Ghose LogP", body_normal),
+            Paragraph("-0.4 to 5.6", body_normal),
+            Paragraph(f"{ghose.get('logp', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if ghose.get('logp', {}).get('passed') else "ALERT", pass_badge_style if ghose.get('logp', {}).get('passed') else fail_badge_style),
+            Paragraph("Heavy Atom Count", body_normal),
+            Paragraph(f"{ext.get('heavy_atoms', 'N/A')}", body_normal)
         ],
         [
-            Paragraph("<b>Molar Refractivity:</b>", body_bold), Paragraph(f"{ext.get('molar_refractivity', 'N/A')} m³/mol", body_normal),
-            Paragraph("<b>Scaffold SMILES:</b>", body_bold), Paragraph(f"<font size=7>{depictions.get('scaffold_smiles', 'N/A')}</font>", body_normal)
+            Paragraph("Ghose MW", body_normal),
+            Paragraph("160 to 480", body_normal),
+            Paragraph(f"{ghose.get('mw', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if ghose.get('mw', {}).get('passed') else "ALERT", pass_badge_style if ghose.get('mw', {}).get('passed') else fail_badge_style),
+            Paragraph("Aromatic / Total Rings", body_normal),
+            Paragraph(f"{ext.get('aromatic_rings', 0)} / {ext.get('rings', 0)}", body_normal)
+        ],
+        [
+            Paragraph("Molar Refractivity", body_normal),
+            Paragraph("40 to 130", body_normal),
+            Paragraph(f"{ghose.get('mr', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if ghose.get('mr', {}).get('passed') else "ALERT", pass_badge_style if ghose.get('mr', {}).get('passed') else fail_badge_style),
+            Paragraph("Fraction Csp3 (Fsp3)", body_normal),
+            Paragraph(f"{ext.get('fsp3', 'N/A')}", body_normal)
+        ],
+        [
+            Paragraph("Heavy Atom Count", body_normal),
+            Paragraph("20 to 70", body_normal),
+            Paragraph(f"{ghose.get('atoms', {}).get('value', 'N/A')}", body_normal),
+            Paragraph("PASS" if ghose.get('atoms', {}).get('passed') else "ALERT", pass_badge_style if ghose.get('atoms', {}).get('passed') else fail_badge_style),
+            Paragraph("Chiral Centers (Stereo)", body_normal),
+            Paragraph(f"{ext.get('chiral_centers_count', 0)} centers", body_normal)
         ]
     ]
-    notes_table = Table(notes_data, colWidths=[120, 160, 110, 150])
-    notes_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
-        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
-        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#f1f5f9')),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    
+    ghose_ext_table = Table(ghose_ext_data, colWidths=[100, 65, 55, 50, 150, 120])
+    ghose_ext_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0284c7')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor('#cbd5e1')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+        ('LEFTPADDING', (0,0), (-1,-1), 4),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
     ]))
-    story.append(notes_table)
+    story.append(ghose_ext_table)
+    story.append(Spacer(1, 8))
+    
+    # 6. Morgan Fingerprint & GHS Safety Section
+    story.append(Paragraph("<b>Cheminformatics Fingerprints & PubChem GHS Safety Flags</b>", section_heading))
+    
+    mfp_bits = mfp.get('on_bits_count', 0)
+    mfp_density = mfp.get('bit_density', 0.0)
+    
+    ghs_pics = safety.get('pictograms', [])
+    ghs_text = ", ".join([p.get('name', '') for p in ghs_pics]) if ghs_pics else "No GHS pictograms reported on PubChem"
+    hazard_stmts = safety.get('hazard_statements', [])
+    hazard_preview = "; ".join(hazard_stmts[:3]) if hazard_stmts else "Standard laboratory handling precautions apply"
+    
+    safety_summary_data = [
+        [
+            Paragraph("<b>Morgan Fingerprint:</b>", body_bold),
+            Paragraph(f"ECFP4 Equivalent (Radius 2, 1024-bit). Active Bits: <b>{mfp_bits}</b> / 1024 ({mfp_density*100:.2f}% bit density)", body_normal),
+        ],
+        [
+            Paragraph("<b>GHS Hazard Pictograms:</b>", body_bold),
+            Paragraph(f"<b>{ghs_text}</b>", body_normal),
+        ],
+        [
+            Paragraph("<b>PubChem Bioassays:</b>", body_bold),
+            Paragraph(f"Total Tested Assays: <b>{safety.get('bioassays_count', 0)}</b> | Active Assays: <b>{safety.get('active_bioassays_count', 0)}</b>", body_normal),
+        ],
+        [
+            Paragraph("<b>Hazard Statements:</b>", body_bold),
+            Paragraph(f"{hazard_preview}", body_normal),
+        ]
+    ]
+    
+    safety_table = Table(safety_summary_data, colWidths=[130, 410])
+    safety_table.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f8fafc')),
+        ('BOX', (0,0), (-1,-1), 0.75, colors.HexColor('#cbd5e1')),
+        ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('LEFTPADDING', (0,0), (-1,-1), 5),
+        ('RIGHTPADDING', (0,0), (-1,-1), 5),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE')
+    ]))
+    story.append(safety_table)
     story.append(Spacer(1, 10))
     
-    # 7. Footnote and Methodology
-    footnote = (
-        "<b>Methodology Notes:</b> Lipinski's Rule of 5 predicts oral bioavailability for small molecule drug candidates. "
-        "Veber's rules evaluate conformational flexibility (RotB ≤ 10) and polarity (TPSA ≤ 140 Å²). "
-        "Generated computationally via RDKit (2024/2025 Release) and PubChem API. Designed for research and evaluation purposes."
-    )
-    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.HexColor('#cbd5e1'), spaceBefore=4, spaceAfter=4))
-    story.append(Paragraph(footnote, ParagraphStyle('Footnote', parent=styles['Normal'], fontName='Helvetica-Oblique', fontSize=7.5, leading=9.5, textColor=colors.HexColor('#64748b'))))
+    # 7. Footer
+    story.append(HRFlowable(width="100%", thickness=0.75, color=colors.HexColor('#cbd5e1'), spaceBefore=2, spaceAfter=4))
+    footer_text = "<b>Scientific Methodology:</b> Lipinski CA et al. (1997) Adv Drug Deliv Rev; Veber DF et al. (2002) J Med Chem; Ghose AK et al. (1999) J Comb Chem; RDKit MMFF94 force field. Generated via Cheminformatics Virtual Lab Web Suite."
+    story.append(Paragraph(footer_text, ParagraphStyle('FooterStyle', parent=styles['Normal'], fontName='Helvetica', fontSize=6.5, leading=8.5, textColor=colors.HexColor('#64748b'), alignment=TA_CENTER)))
     
     doc.build(story)
     pdf_buffer.seek(0)
