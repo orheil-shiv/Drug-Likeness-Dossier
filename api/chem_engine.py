@@ -23,64 +23,127 @@ import pubchempy as pcp
 lg = RDLogger.logger()
 lg.setLevel(RDLogger.CRITICAL)
 
+# Fast offline cache of common FDA approved and benchmark compounds
+COMMON_DRUGS = {
+    'aspirin': ('CC(=O)Oc1ccccc1C(=O)O', 2244, 'C9H8O4', '2-acetyloxybenzoic acid', 'Aspirin'),
+    'acetylsalicylic acid': ('CC(=O)Oc1ccccc1C(=O)O', 2244, 'C9H8O4', '2-acetyloxybenzoic acid', 'Aspirin'),
+    'caffeine': ('CN1C=NC2=C1C(=O)N(C(=O)N2C)C', 2519, 'C8H10N4O2', '1,3,7-trimethylpurine-2,6-dione', 'Caffeine'),
+    'ibuprofen': ('CC(C)Cc1ccc(cc1)C(C)C(=O)O', 3672, 'C13H18O2', '2-[4-(2-methylpropyl)phenyl]propanoic acid', 'Ibuprofen'),
+    'paracetamol': ('CC(=O)Nc1ccc(O)cc1', 1983, 'C8H9NO2', 'N-(4-hydroxyphenyl)acetamide', 'Paracetamol'),
+    'acetaminophen': ('CC(=O)Nc1ccc(O)cc1', 1983, 'C8H9NO2', 'N-(4-hydroxyphenyl)acetamide', 'Acetaminophen'),
+    'penicillin v': ('CC1(C)S[C@@H]2[C@H](NC(=O)COc3ccccc3)C(=O)N2[C@H]1C(=O)O', 6869, 'C16H18N2O5S', '(2S,5R,6R)-3,3-dimethyl-7-oxo-6-[(2-phenoxyacetyl)amino]-4-thia-1-azabicyclo[3.2.0]heptane-2-carboxylic acid', 'Penicillin V'),
+    'penicillin': ('CC1(C)S[C@@H]2[C@H](NC(=O)Cc3ccccc3)C(=O)N2[C@H]1C(=O)O', 5904, 'C16H18N2O4S', 'benzylpenicillin', 'Penicillin G'),
+    'atorvastatin': ('CC(C)c1c(C(=O)Nc2ccccc2)c(-c2ccccc2)c(-c2ccc(F)cc2)n1CC[C@@H](O)C[C@@H](O)CC(=O)O', 60823, 'C33H35FN2O5', '(3R,5R)-7-[2-(4-fluorophenyl)-3-phenyl-4-(phenylcarbamoyl)-5-propan-2-ylpyrrol-1-yl]-3,5-dihydroxyheptanoic acid', 'Atorvastatin'),
+    'lipitor': ('CC(C)c1c(C(=O)Nc2ccccc2)c(-c2ccccc2)c(-c2ccc(F)cc2)n1CC[C@@H](O)C[C@@H](O)CC(=O)O', 60823, 'C33H35FN2O5', 'Atorvastatin', 'Atorvastatin'),
+    'remdesivir': ('CCC(CC)COC(=O)[C@H](C)N[P@](=O)(OC[C@H]1O[C@](C#N)(c2ccc3n2ncnc3N)[C@H](O)[C@@H]1O)Oc1ccccc1', 121304016, 'C27H35N6O8P', 'Remdesivir', 'Remdesivir'),
+    'metformin': ('CN(C)C(=N)NC(=N)N', 4091, 'C4H11N5', '1-carbamimidamido-N,N-dimethylmethanimidamide', 'Metformin'),
+    'omeprazole': ('CC1=CN=C(C(=C1OC)C)CS(=O)C2=NC3=C(N2)C=C(C=C3)OC', 4594, 'C17H19N3O3S', '6-methoxy-2-[(4-methoxy-3,5-dimethylpyridin-2-yl)methylsulfinyl]-1H-benzimidazole', 'Omeprazole'),
+    'amoxicillin': ('CC1(C)S[C@@H]2[C@H](NC(=O)[C@H](N)c3ccc(O)cc3)C(=O)N2[C@H]1C(=O)O', 33613, 'C16H19N3O5S', 'Amoxicillin', 'Amoxicillin'),
+    'lisinopril': ('NCCCCC[C@H](NC(=O)[C@H](CCc1ccccc1)NC(C)=O)C(=O)N2CCC[C@H]2C(=O)O', 5362119, 'C21H31N3O5', 'Lisinopril', 'Lisinopril'),
+    'morphine': ('CN1CC[C@]23[C@@H]4Oc5c(O)ccc(C[C@@H]1[C@@H]2C=C[C@@H]4O)c53', 5288826, 'C17H19NO3', 'Morphine', 'Morphine'),
+    'warfarin': ('CC(=O)CC(c1ccccc1)c2c(O)c3ccccc3oc2=O', 54678486, 'C19H16O4', 'Warfarin', 'Warfarin'),
+    'dopamine': ('NCCc1ccc(O)c(O)c1', 681, 'C8H11NO2', '4-(2-aminoethyl)benzene-1,2-diol', 'Dopamine'),
+    'serotonin': ('NCCc1c[nH]c2ccc(O)cc12', 5202, 'C10H12N2O', '3-(2-aminoethyl)-1H-indol-5-ol', 'Serotonin'),
+    'ethanol': ('CCO', 702, 'C2H6O', 'ethanol', 'Ethanol'),
+    'glucose': ('OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O', 5793, 'C6H12O6', 'D-glucose', 'Glucose')
+}
+
 def resolve_molecule(query: str):
     """
     Resolves input query (SMILES string or compound name) to a standardized RDKit Mol object
-    and associated metadata.
+    and associated metadata. Uses fast local cache for common drugs and instant SMILES parsing
+    without network latency, with a strict 2.5s timeout for unknown PubChem lookups.
     """
     query = query.strip()
+    query_lower = query.lower()
+    
+    # 1. Check fast offline drug dictionary first
+    if query_lower in COMMON_DRUGS:
+        smiles, cid, formula, iupac, disp_name = COMMON_DRUGS[query_lower]
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is not None:
+            return mol, {
+                "query": query,
+                "input_type": "name",
+                "name": disp_name,
+                "iupac_name": iupac,
+                "cid": cid,
+                "formula": formula,
+                "smiles": Chem.MolToSmiles(mol, canonical=True),
+                "warnings": []
+            }
+
+    # 2. Check if query is a valid SMILES string
     mol = Chem.MolFromSmiles(query)
-    
-    metadata = {
-        "query": query,
-        "input_type": "smiles" if mol is not None else "name",
-        "name": query,
-        "iupac_name": "",
-        "cid": None,
-        "formula": "",
-        "smiles": query,
-        "warnings": []
-    }
-    
     if mol is not None:
-        metadata["formula"] = rdMolDescriptors.CalcMolFormula(mol)
-        metadata["smiles"] = Chem.MolToSmiles(mol, canonical=True)
-        # Attempt quick pubchem lookup for name & CID if it was a SMILES
-        try:
-            compounds = pcp.get_compounds(metadata["smiles"], 'smiles')
-            if compounds and len(compounds) > 0:
-                c = compounds[0]
-                metadata["cid"] = c.cid
-                metadata["iupac_name"] = c.iupac_name or ""
-                metadata["name"] = c.synonyms[0] if (hasattr(c, 'synonyms') and c.synonyms) else (c.iupac_name or query)
-        except Exception:
-            pass
-    else:
-        # Resolve via PubChem
-        try:
-            compounds = pcp.get_compounds(query, 'name')
-            if not compounds:
-                raise ValueError(f"Could not resolve compound '{query}' in PubChem or as a valid SMILES.")
-            c = compounds[0]
-            resolved_smiles = getattr(c, 'connectivity_smiles', None) or getattr(c, 'canonical_smiles', None) or getattr(c, 'isomeric_smiles', None)
-            if not resolved_smiles:
-                raise ValueError(f"PubChem resolved CID {c.cid} for '{query}', but no valid SMILES was returned.")
+        formula = rdMolDescriptors.CalcMolFormula(mol)
+        canonical_smi = Chem.MolToSmiles(mol, canonical=True)
+        return mol, {
+            "query": query,
+            "input_type": "smiles",
+            "name": f"SMILES Candidate ({formula})",
+            "iupac_name": f"SMILES: {canonical_smi}",
+            "cid": None,
+            "formula": formula,
+            "smiles": canonical_smi,
+            "warnings": []
+        }
+
+    # 3. Resolve unknown compound name via PubChem with strict 2.5-second timeout
+    try:
+        import urllib.request
+        import urllib.parse
+        import json
+        
+        encoded_name = urllib.parse.quote(query)
+        url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{encoded_name}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,RotatableBondCount,HeavyAtomCount,IUPACName,ConnectivitySMILES,MolecularFormula/JSON"
+        
+        req = urllib.request.Request(url, headers={'User-Agent': 'DrugLikenessDossier/1.0'})
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            props = data['PropertyTable']['Properties'][0]
             
+            resolved_smiles = props.get('ConnectivitySMILES') or props.get('CanonicalSMILES')
+            if not resolved_smiles:
+                raise ValueError(f"PubChem resolved '{query}', but no SMILES was returned.")
+                
             mol = Chem.MolFromSmiles(resolved_smiles)
             if mol is None:
                 raise ValueError(f"RDKit failed to parse SMILES from PubChem: {resolved_smiles}")
-            
-            metadata["name"] = query.capitalize()
-            metadata["cid"] = c.cid
-            metadata["formula"] = c.molecular_formula or rdMolDescriptors.CalcMolFormula(mol)
-            metadata["iupac_name"] = c.iupac_name or ""
-            metadata["smiles"] = Chem.MolToSmiles(mol, canonical=True)
-        except Exception as e:
-            if "Could not resolve" in str(e) or "failed to parse" in str(e):
-                raise
-            raise ValueError(f"Failed to resolve compound '{query}': {str(e)}")
-            
-    return mol, metadata
+                
+            return mol, {
+                "query": query,
+                "input_type": "name",
+                "name": query.capitalize(),
+                "cid": props.get('CID'),
+                "formula": props.get('MolecularFormula') or rdMolDescriptors.CalcMolFormula(mol),
+                "iupac_name": props.get('IUPACName', ''),
+                "smiles": Chem.MolToSmiles(mol, canonical=True),
+                "warnings": []
+            }
+    except Exception as e:
+        # Fallback to pubchempy with strict timeout if available
+        try:
+            compounds = pcp.get_compounds(query, 'name', timeout=2)
+            if compounds and len(compounds) > 0:
+                c = compounds[0]
+                smi = getattr(c, 'connectivity_smiles', None) or getattr(c, 'canonical_smiles', None)
+                if smi:
+                    mol = Chem.MolFromSmiles(smi)
+                    if mol is not None:
+                        return mol, {
+                            "query": query,
+                            "input_type": "name",
+                            "name": query.capitalize(),
+                            "cid": c.cid,
+                            "formula": c.molecular_formula or rdMolDescriptors.CalcMolFormula(mol),
+                            "iupac_name": c.iupac_name or "",
+                            "smiles": Chem.MolToSmiles(mol, canonical=True),
+                            "warnings": []
+                        }
+        except Exception:
+            pass
+        raise ValueError(f"Could not resolve compound '{query}' as a valid SMILES or via PubChem. Please verify the name or enter SMILES directly.")
 
 def calculate_physicochemical_properties(mol):
     """

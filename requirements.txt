@@ -1,6 +1,5 @@
 rdkit>=2023.9.1
 pubchempy>=1.0.4
-pandas>=2.0.0
 numpy>=1.24.0
 matplotlib>=3.7.0
 pillow>=10.0.0
