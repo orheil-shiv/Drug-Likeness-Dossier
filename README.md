@@ -12,9 +12,9 @@ Optimized for 1-click serverless deployment on **Vercel** with a Next.js fronten
 Open terminal / PowerShell in this directory (`drug-likeness-dossier`):
 
 ```bash
-# 1. Create a new empty repository on GitHub (e.g., https://github.com/<your-username>/drug-likeness-dossier)
+# 1. Create a new empty repository on GitHub: https://github.com/new (Name: drug-likeness-dossier)
 # 2. Link and push:
-git remote add origin https://github.com/<your-username>/drug-likeness-dossier.git
+git remote set-url origin https://github.com/orheil-shiv/drug-likeness-dossier.git
 git branch -M main
 git push -u origin main
 ```
