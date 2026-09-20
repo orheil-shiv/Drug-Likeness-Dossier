@@ -2,14 +2,43 @@
 
 An automated full-stack bio/cheminformatics web application engineered for small-molecule drug discovery profiling, multi-style 2D and 3D molecular visualization, and publication-ready PDF dossier generation.
 
-Optimized for serverless deployment on **Vercel** with a Next.js frontend and Python serverless backend (`rdkit`, `pubchempy`, `reportlab`, `matplotlib`).
+Optimized for 1-click serverless deployment on **Vercel** with a Next.js frontend and Python serverless backend (`rdkit`, `pubchempy`, `reportlab`, `matplotlib`).
+
+---
+
+## Deploy to Vercel (1-Click)
+
+### Step 1: Create a GitHub Repository and Push
+Open terminal / PowerShell in this directory (`drug-likeness-dossier`):
+
+```bash
+# 1. Create a new empty repository on GitHub (e.g., https://github.com/<your-username>/drug-likeness-dossier)
+# 2. Link and push:
+git remote add origin https://github.com/<your-username>/drug-likeness-dossier.git
+git branch -M main
+git push -u origin main
+```
+
+### Step 2: Deploy on Vercel
+1. Go to [vercel.com](https://vercel.com) and log in.
+2. Click **"Add New..."** -> **"Project"**.
+3. Select your `drug-likeness-dossier` GitHub repository and click **"Import"**.
+4. Leave all settings at default (**Framework Preset: Next.js**, **Root Directory: ./**).
+5. Click **"Deploy"**.
+
+Vercel will automatically:
+- Build the Next.js frontend using `package.json`.
+- Package the Python backend using `requirements.txt` and `api/index.py`.
+- Configure `/api/*` rewrites defined in `vercel.json`.
+
+Your application will be live on `https://your-project.vercel.app` in under 2 minutes!
 
 ---
 
 ## Key Features
 
 ### 1. Molecule Resolution & Database Lookup
-- **Dual Input Modes**: Accepts canonical SMILES strings or common compound names (e.g. *Aspirin*, *Atorvastatin*, *Remdesivir*).
+- **Dual Input Modes**: Accepts canonical SMILES strings (e.g., `CC(=O)Oc1ccccc1C(=O)O`) or common compound names (e.g., *Aspirin*, *Atorvastatin*, *Remdesivir*).
 - **PubChem Auto-Lookup**: Resolves IUPAC nomenclature, PubChem Compound ID (CID), molecular formula, and standardized SMILES.
 
 ### 2. Physicochemical Profiling & Rule Compliance
@@ -52,7 +81,7 @@ Generates four distinct high-resolution rendering styles returned as base64 PNGs
   - High-res snapshot PNG capture
 
 ### 5. Normalized Lipinski Radar Plot
-- Matplotlib polar chart displaying the candidate molecule's parameters normalized against the 1.0 boundary limit.
+- Matplotlib polar chart displaying candidate molecule parameters normalized against the 1.0 boundary limit.
 - Instantly visualizes whether a compound lies within the oral bioavailability chemical space.
 
 ### 6. Publication-Ready PDF Dossier Generation (`/api/export-pdf`)
@@ -71,7 +100,7 @@ Generates four distinct high-resolution rendering styles returned as base64 PNGs
 
 - **Frontend**: Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Lucide React icons.
 - **3D Molecular Engine**: 3Dmol.js WebGL canvas.
-- **Backend**: Python 3.12 Serverless Functions (FastAPI / BaseHTTPRequestHandler).
+- **Backend**: Python 3.12 Serverless Functions (FastAPI / ASGI).
 - **Cheminformatics Dependencies**:
   - `rdkit`: Molecular representations, ETKDGv3 3D conformers, MMFF94 minimization, Gasteiger charges, Bemis-Murcko scaffolds.
   - `pubchempy`: Automated PubChem compound name resolution.
@@ -85,17 +114,24 @@ Generates four distinct high-resolution rendering styles returned as base64 PNGs
 
 ```
 drug-likeness-dossier/
+├── .gitignore               # Excludes node_modules, .next, __pycache__, etc.
+├── vercel.json              # Zero-config serverless rewrites (/api/* -> api/index.py)
+├── requirements.txt         # Serverless Python dependencies
+├── package.json             # NPM dependencies & concurrent dev runner
+├── next.config.js           # Next.js config with dev proxy rewrites
+├── tsconfig.json            # TypeScript configuration
+├── tailwind.config.js       # Tailwind CSS configuration
+├── postcss.config.js        # PostCSS configuration
 ├── api/
-│   ├── __init__.py
-│   ├── chem_engine.py       # Core RDKit, PubChem, Conformer, and Radar calculation routines
+│   ├── chem_engine.py       # Core RDKit, PubChem, Conformer, and Radar routines
 │   ├── pdf_generator.py     # ReportLab Platypus publication-ready dossier builder
-│   ├── index.py             # FastAPI app with /api/analyze, /api/export-pdf, /api/health
+│   ├── index.py             # FastAPI serverless handler (/api/analyze, /api/export-pdf)
 │   ├── analyze.py           # Vercel serverless entrypoint for /api/analyze
 │   └── export_pdf.py        # Vercel serverless entrypoint for /api/export-pdf
 ├── src/
 │   ├── app/
 │   │   ├── layout.tsx       # Root layout loading 3Dmol.js CDN
-│   │   ├── page.tsx         # Interactive dashboard page
+│   │   ├── page.tsx         # Interactive molecular dashboard
 │   │   └── globals.css      # Custom styles & glassmorphism
 │   ├── components/
 │   │   ├── SearchBar.tsx    # Query input with quick-select drug chips
@@ -107,23 +143,60 @@ drug-likeness-dossier/
 │   ├── types/
 │   │   └── chem.ts          # TypeScript interfaces
 │   └── lib/
-│       └── samples.ts       # Preset drug molecules (Aspirin, Caffeine, Atorvastatin, etc.)
-├── package.json             # NPM dependencies & scripts
-├── tsconfig.json            # TypeScript configuration
-├── next.config.js           # Next.js config with local dev API rewrites
-├── tailwind.config.js       # Tailwind CSS configuration
-├── postcss.config.js        # PostCSS configuration
-├── requirements.txt         # Python dependencies
-├── vercel.json              # Vercel serverless configuration
+│       └── samples.ts       # Preset candidate drugs (Aspirin, Caffeine, Atorvastatin, etc.)
 └── README.md                # Project documentation
 ```
 
 ---
 
+## Local Development
 
+### Prerequisites
+- **Node.js**: v18 or higher (v20+ recommended)
+- **Python**: 3.10, 3.11, or 3.12
 
-**Response:**
-JSON object containing:
+### 1. Install Dependencies
+
+**Python Backend:**
+```bash
+pip install -r requirements.txt
+```
+
+**Next.js Frontend:**
+```bash
+npm install
+```
+
+### 2. Run Locally
+
+Run both the Next.js frontend and Python backend concurrently with a single command:
+```bash
+npm run dev
+```
+
+This launches:
+- **FastAPI Backend**: `http://localhost:8000` (API documentation available at `/docs`)
+- **Next.js Frontend**: `http://localhost:3000`
+
+---
+
+## API Endpoints Reference
+
+### `POST /api/analyze`
+**Request Payload:**
+```json
+{
+  "query": "Aspirin"
+}
+```
+*Or canonical SMILES:*
+```json
+{
+  "query": "CC(=O)Oc1ccccc1C(=O)O"
+}
+```
+
+**Response JSON:**
 - `metadata`: Compound name, formula, CID, IUPAC name, canonical SMILES.
 - `properties`: Lipinski & Veber parameters, pass/fail booleans, violation count, extended descriptors.
 - `depictions`: 4 base64 PNG images (`skeletal`, `wedge_dash`, `explicit_atoms`, `murcko_scaffold`).
@@ -150,4 +223,4 @@ Binary stream with header `Content-Type: application/pdf` and `Content-Dispositi
 ---
 
 ## License
-MIT License. Built for pharmaceutical chemistry, medicinal informatics, and educational computational biology workflows.
+MIT License. Built for pharmaceutical chemistry, medicinal informatics, and computational biology workflows.
