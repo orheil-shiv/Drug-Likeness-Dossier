@@ -32,8 +32,17 @@ export default function Home() {
       });
 
       if (!response.ok) {
-        const errJson = await response.json().catch(() => ({ detail: 'Analysis failed' }));
-        throw new Error(errJson.detail || `Server error: ${response.status}`);
+        let errDetail = `Server error (${response.status})`;
+        try {
+          const errJson = await response.json();
+          errDetail = errJson.detail || errDetail;
+        } catch {
+          const text = await response.text().catch(() => '');
+          if (text) {
+            errDetail = `${text.slice(0, 150)} (HTTP ${response.status})`;
+          }
+        }
+        throw new Error(errDetail);
       }
 
       setLoadingStep('Calculating 3D conformer & rendering representations...');
