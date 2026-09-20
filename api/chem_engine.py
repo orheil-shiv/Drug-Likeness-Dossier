@@ -128,49 +128,24 @@ def fetch_pubchem_safety(cid: int) -> Dict[str, Any]:
         
     try:
         url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug_view/data/compound/{cid}/JSON?heading=GHS+Classification"
-        req = urllib.request.Request(url, headers={'User-Agent': 'CheminformaticsVirtualLab/1.0'})
-        with urllib.request.urlopen(req, timeout=1.5) as resp:
-            data = json.loads(resp.read().decode('utf-8'))
-            seen_ghs = set()
+        req = urllib.request.Request(url, headers={'User-Agent': 'CheminformaticsVirtualLab/2.0'})
+        with urllib.request.urlopen(req, timeout=8.0) as resp:
+            raw_text = resp.read().decode('utf-8')
+            codes = sorted(list(set(re.findall(r'GHS0[1-9]', raw_text))))
             pictograms = []
-            hazard_statements = []
+            for c in codes:
+                name, desc = GHS_DESCRIPTIONS.get(c, ('Hazard', 'Hazard alert'))
+                pictograms.append({
+                    "code": c,
+                    "name": name,
+                    "url": f"https://pubchem.ncbi.nlm.nih.gov/images/ghs/{c}.svg"
+                })
             
-            def scan_node(node):
-                if isinstance(node, dict):
-                    if 'Information' in node:
-                        for info in node['Information']:
-                            if info.get('Name') == 'GHS Hazard Statements':
-                                if 'Value' in info and 'StringWithMarkup' in info['Value']:
-                                    for s in info['Value']['StringWithMarkup']:
-                                        text = s.get('String')
-                                        if text and text not in hazard_statements:
-                                            hazard_statements.append(text)
-                            if 'Value' in info and 'StringWithMarkup' in info['Value']:
-                                for s in info['Value']['StringWithMarkup']:
-                                    if 'Markup' in s:
-                                        for m in s['Markup']:
-                                            url = m.get('URL', '')
-                                            if 'ghs' in url.lower() and ('GHS0' in url):
-                                                match = re.search(r'GHS0[1-9]', url)
-                                                if match:
-                                                    code = match.group(0)
-                                                    if code not in seen_ghs:
-                                                        seen_ghs.add(code)
-                                                        name, desc = GHS_DESCRIPTIONS.get(code, ('Hazard', 'Hazard alert'))
-                                                        pictograms.append({
-                                                            "code": code,
-                                                            "name": name,
-                                                            "url": f"https://pubchem.ncbi.nlm.nih.gov/images/ghs/{code}.svg"
-                                                        })
-                    for k, v in node.items():
-                        scan_node(v)
-                elif isinstance(node, list):
-                    for item in node:
-                        scan_node(item)
-                        
-            scan_node(data.get('Record', {}))
+            raw_stmts = re.findall(r'H\d{3}:?[^"<\\]+', raw_text)
+            hazard_statements = list(dict.fromkeys([s.strip() for s in raw_stmts]))[:8]
+            
             safety_data["pictograms"] = pictograms
-            safety_data["hazard_statements"] = hazard_statements[:8]
+            safety_data["hazard_statements"] = hazard_statements
     except Exception:
         pass
         
@@ -308,15 +283,20 @@ def resolve_molecule(query: str) -> Tuple[Chem.Mol, Dict[str, Any]]:
         except Exception:
             pass
 
-    # 5. CAS number or Compound Name via PubChem PUG REST
+    # 5. CID, CAS number, or Compound Name via PubChem PUG REST
+    is_cid = bool(re.match(r'^\d+$', query))
     is_cas = bool(re.match(r'^\d{2,7}-\d{2}-\d$', query))
-    input_type = "cas" if is_cas else "name"
+    input_type = "cid" if is_cid else ("cas" if is_cas else "name")
     
     try:
         encoded = urllib.parse.quote(query)
-        url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{encoded}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,RotatableBondCount,HeavyAtomCount,IUPACName,ConnectivitySMILES,CanonicalSMILES,MolecularFormula,InChI,InChIKey/JSON"
-        req = urllib.request.Request(url, headers={'User-Agent': 'CheminformaticsVirtualLab/1.0'})
-        with urllib.request.urlopen(req, timeout=2.8) as resp:
+        if is_cid:
+            url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{encoded}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,RotatableBondCount,HeavyAtomCount,IUPACName,ConnectivitySMILES,CanonicalSMILES,MolecularFormula,InChI,InChIKey/JSON"
+        else:
+            url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{encoded}/property/MolecularWeight,XLogP,HBondDonorCount,HBondAcceptorCount,TPSA,RotatableBondCount,HeavyAtomCount,IUPACName,ConnectivitySMILES,CanonicalSMILES,MolecularFormula,InChI,InChIKey/JSON"
+            
+        req = urllib.request.Request(url, headers={'User-Agent': 'CheminformaticsVirtualLab/2.0'})
+        with urllib.request.urlopen(req, timeout=10.0) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             props = data['PropertyTable']['Properties'][0]
             cid = props.get('CID')
@@ -330,7 +310,7 @@ def resolve_molecule(query: str) -> Tuple[Chem.Mol, Dict[str, Any]]:
                 raise ValueError(f"RDKit could not parse structure from PubChem: {resolved_smiles}")
                 
             safety = fetch_pubchem_safety(cid) if cid else {"pictograms": [], "hazard_statements": [], "bioassays_count": 0, "active_bioassays_count": 0}
-            disp_name = query.capitalize() if not is_cas else f"CAS {query}"
+            disp_name = (f"CID {query}" if is_cid else (f"CAS {query}" if is_cas else query.capitalize()))
             
             return mol, {
                 "query": query,

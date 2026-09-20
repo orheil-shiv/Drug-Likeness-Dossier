@@ -11,6 +11,7 @@ import { MorganFingerprint } from '@/components/MorganFingerprint';
 import { SafetyPictograms } from '@/components/SafetyPictograms';
 import { AnalysisResult } from '@/types/chem';
 import { resolveClientFallback } from '@/lib/chem-fallback';
+import { resolvePubChemCompound } from '@/lib/pubchem-service';
 import {
   FlaskConical,
   AlertCircle,
@@ -66,14 +67,23 @@ export default function Home() {
       setAnalysisData(data);
       setQuery(searchQuery);
     } catch (err: any) {
-      console.warn('Backend unreachable or cold start, activating client fallback engine:', err);
+      console.warn('API route fallback or direct browser query required:', err);
+      setLoadingStep('Accessing PubChem database directly (3D conformers & GHS classification)...');
       try {
-        const clientData = resolveClientFallback(searchQuery);
-        setAnalysisData(clientData);
+        const pubChemData = await resolvePubChemCompound(searchQuery);
+        setAnalysisData(pubChemData);
         setQuery(searchQuery);
-        setIsFallbackMode(true);
-      } catch (fallbackErr: any) {
-        setErrorMessage(err.message || 'Failed to analyze molecule');
+        setIsFallbackMode(false);
+      } catch (pubChemErr: any) {
+        console.warn('PubChem direct query error, checking offline cache:', pubChemErr);
+        try {
+          const clientData = resolveClientFallback(searchQuery);
+          setAnalysisData(clientData);
+          setQuery(searchQuery);
+          setIsFallbackMode(true);
+        } catch (fallbackErr: any) {
+          setErrorMessage(err.message || pubChemErr.message || 'Failed to analyze molecule');
+        }
       }
     } finally {
       setIsLoading(false);
@@ -211,6 +221,7 @@ export default function Home() {
                 <RadarChart
                   radarB64={analysisData.radar_b64}
                   compoundName={analysisData.metadata.name}
+                  properties={analysisData.properties}
                 />
               </div>
 
