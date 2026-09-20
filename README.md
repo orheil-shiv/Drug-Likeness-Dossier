@@ -6,35 +6,6 @@ Optimized for 1-click serverless deployment on **Vercel** with a Next.js fronten
 
 ---
 
-## Deploy to Vercel (1-Click)
-
-### Step 1: Create a GitHub Repository and Push
-Open terminal / PowerShell in this directory (`drug-likeness-dossier`):
-
-```bash
-# 1. Create a new empty repository on GitHub: https://github.com/new (Name: drug-likeness-dossier)
-# 2. Link and push:
-git remote set-url origin https://github.com/orheil-shiv/drug-likeness-dossier.git
-git branch -M main
-git push -u origin main
-```
-
-### Step 2: Deploy on Vercel
-1. Go to [vercel.com](https://vercel.com) and log in.
-2. Click **"Add New..."** -> **"Project"**.
-3. Select your `drug-likeness-dossier` GitHub repository and click **"Import"**.
-4. Leave all settings at default (**Framework Preset: Next.js**, **Root Directory: ./**).
-5. Click **"Deploy"**.
-
-Vercel will automatically:
-- Build the Next.js frontend using `package.json`.
-- Package the Python backend using `requirements.txt` and `api/index.py`.
-- Configure `/api/*` rewrites defined in `vercel.json`.
-
-Your application will be live on `https://your-project.vercel.app` in under 2 minutes!
-
----
-
 ## Key Features
 
 ### 1. Molecule Resolution & Database Lookup
