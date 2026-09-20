@@ -38,6 +38,8 @@ class ExportPdfRequest(BaseModel):
 def health_check():
     return {"status": "ok", "service": "drug-likeness-dossier-api"}
 
+import traceback
+
 @app.post("/analyze")
 @app.post("/api/analyze")
 def analyze_molecule(req: AnalyzeRequest):
@@ -49,7 +51,8 @@ def analyze_molecule(req: AnalyzeRequest):
             del results["radar_png_bytes"]
         return results
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"{type(e).__name__}: {str(e)}")
 
 @app.get("/analyze")
 @app.get("/api/analyze")
@@ -62,7 +65,8 @@ def analyze_molecule_get(query: str):
             del results["radar_png_bytes"]
         return results
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"{type(e).__name__}: {str(e)}")
 
 @app.post("/export-pdf")
 @app.post("/api/export-pdf")

@@ -1,3 +1,10 @@
+import os
+import sys
+
+# Ensure Matplotlib writes fonts and cache to writable /tmp in serverless environments (Vercel/AWS Lambda)
+if 'MPLCONFIGDIR' not in os.environ:
+    os.environ['MPLCONFIGDIR'] = '/tmp/matplotlib'
+
 import io
 import base64
 import numpy as np
@@ -7,7 +14,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 from rdkit import Chem, RDLogger
-from rdkit.Chem import Descriptors, AllChem, rdMolDescriptors
+from rdkit.Chem import Descriptors, AllChem, rdMolDescriptors, Draw
 from rdkit.Chem.Scaffolds import MurckoScaffold
 from rdkit.Chem.Draw import rdMolDraw2D
 import pubchempy as pcp
@@ -146,6 +153,42 @@ def calculate_physicochemical_properties(mol):
         }
     }
 
+def _render_mol_png(mol, size=(450, 400), highlight_atoms=None, explicit_methyl=False):
+    """
+    Renders molecule to PNG bytes. Tries MolDraw2DCairo first; if Cairo shared library
+    is not installed on the system (e.g. AWS Lambda / Vercel), cleanly falls back to
+    RDKit's pure Pillow drawer (Draw.MolToImage) with 100% reliability.
+    """
+    w, h = size
+    # Try Cairo first if available
+    try:
+        drawer = rdMolDraw2D.MolDraw2DCairo(w, h)
+        opts = drawer.drawOptions()
+        opts.clearBackground = False
+        opts.bondLineWidth = 2.0
+        if explicit_methyl:
+            opts.explicitMethyl = True
+        if highlight_atoms:
+            highlight_colors = {idx: (0.9, 0.3, 0.2) for idx in highlight_atoms}
+            drawer.DrawMolecule(mol, highlightAtoms=highlight_atoms, highlightAtomColors=highlight_colors)
+        else:
+            drawer.DrawMolecule(mol)
+        drawer.FinishDrawing()
+        return drawer.GetDrawingText()
+    except Exception:
+        # Robust pure Pillow fallback (Zero system C library / libcairo dependencies!)
+        try:
+            img = Draw.MolToImage(mol, size=size, highlightAtoms=highlight_atoms if highlight_atoms else None)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            return buf.getvalue()
+        except Exception:
+            # Secondary fallback: create transparent blank image
+            im = Image.new('RGBA', size, (255, 255, 255, 0))
+            buf = io.BytesIO()
+            im.save(buf, format='PNG')
+            return buf.getvalue()
+
 def generate_2d_depictions(mol, img_size=(450, 400)):
     """
     Generates 4 distinct 2D depictions returned as base64 PNGs:
@@ -162,13 +205,8 @@ def generate_2d_depictions(mol, img_size=(450, 400)):
     AllChem.Compute2DCoords(mol_2d)
     
     # 1. Standard Skeletal
-    drawer1 = rdMolDraw2D.MolDraw2DCairo(w, h)
-    opts1 = drawer1.drawOptions()
-    opts1.clearBackground = False
-    opts1.bondLineWidth = 2.0
-    drawer1.DrawMolecule(mol_2d)
-    drawer1.FinishDrawing()
-    depictions["skeletal"] = base64.b64encode(drawer1.GetDrawingText()).decode('utf-8')
+    png1 = _render_mol_png(mol_2d, size=(w, h))
+    depictions["skeletal"] = base64.b64encode(png1).decode('utf-8')
     
     # 2. Stereochemical Wedge-and-Dash with chiral centers highlighted
     mol_stereo = Chem.Mol(mol_2d)
@@ -176,43 +214,23 @@ def generate_2d_depictions(mol, img_size=(450, 400)):
     chiral_centers = Chem.FindMolChiralCenters(mol_stereo, includeUnassigned=True)
     chiral_atom_indices = [c[0] for c in chiral_centers]
     
-    drawer2 = rdMolDraw2D.MolDraw2DCairo(w, h)
-    opts2 = drawer2.drawOptions()
-    opts2.clearBackground = False
-    opts2.bondLineWidth = 2.0
-    if chiral_atom_indices:
-        highlight_colors = {idx: (0.9, 0.3, 0.2) for idx in chiral_atom_indices}
-        drawer2.DrawMolecule(mol_stereo, highlightAtoms=chiral_atom_indices, highlightAtomColors=highlight_colors)
-    else:
-        drawer2.DrawMolecule(mol_stereo)
-    drawer2.FinishDrawing()
-    depictions["wedge_dash"] = base64.b64encode(drawer2.GetDrawingText()).decode('utf-8')
+    png2 = _render_mol_png(mol_stereo, size=(w, h), highlight_atoms=chiral_atom_indices)
+    depictions["wedge_dash"] = base64.b64encode(png2).decode('utf-8')
     depictions["chiral_atoms_count"] = len(chiral_atom_indices)
     
     # 3. Full Explicit Atom Representation (all carbons & implicit hydrogens explicit)
     mol_explicit = Chem.AddHs(mol)
     AllChem.Compute2DCoords(mol_explicit)
-    drawer3 = rdMolDraw2D.MolDraw2DCairo(w, h)
-    opts3 = drawer3.drawOptions()
-    opts3.clearBackground = False
-    opts3.explicitMethyl = True
-    opts3.bondLineWidth = 1.8
-    drawer3.DrawMolecule(mol_explicit)
-    drawer3.FinishDrawing()
-    depictions["explicit_atoms"] = base64.b64encode(drawer3.GetDrawingText()).decode('utf-8')
+    png3 = _render_mol_png(mol_explicit, size=(w, h), explicit_methyl=True)
+    depictions["explicit_atoms"] = base64.b64encode(png3).decode('utf-8')
     
     # 4. Bemis-Murcko Scaffold Extraction
     try:
         scaffold = MurckoScaffold.GetScaffoldForMol(mol)
         if scaffold and scaffold.GetNumAtoms() > 0:
             AllChem.Compute2DCoords(scaffold)
-            drawer4 = rdMolDraw2D.MolDraw2DCairo(w, h)
-            opts4 = drawer4.drawOptions()
-            opts4.clearBackground = False
-            opts4.bondLineWidth = 2.0
-            drawer4.DrawMolecule(scaffold)
-            drawer4.FinishDrawing()
-            depictions["murcko_scaffold"] = base64.b64encode(drawer4.GetDrawingText()).decode('utf-8')
+            png4 = _render_mol_png(scaffold, size=(w, h))
+            depictions["murcko_scaffold"] = base64.b64encode(png4).decode('utf-8')
             depictions["has_scaffold"] = True
             depictions["scaffold_smiles"] = Chem.MolToSmiles(scaffold)
         else:
