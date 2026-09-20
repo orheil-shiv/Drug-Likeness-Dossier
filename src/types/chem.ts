@@ -96,6 +96,7 @@ export interface Depictions {
   wedge_dash_svg?: string;
   chiral_atoms_count?: number;
   explicit_atoms: string;
+  explicit_atoms_svg?: string;
   murcko_scaffold: string | null;
   murcko_scaffold_svg?: string | null;
   has_scaffold: boolean;

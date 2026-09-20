@@ -454,23 +454,27 @@ def calculate_physicochemical_properties(mol: Chem.Mol) -> Dict[str, Any]:
         }
     }
 
-def _render_mol_svg(mol: Chem.Mol, size=(450, 400), highlight_atoms=None) -> str:
+def _render_mol_svg(mol: Chem.Mol, size=(450, 400), highlight_atoms=None, explicit_methyl=False) -> str:
     w, h = size
     try:
         drawer = rdMolDraw2D.MolDraw2DSVG(w, h)
         opts = drawer.drawOptions()
         opts.clearBackground = False
         opts.bondLineWidth = 2.2
+        if explicit_methyl:
+            opts.explicitMethyl = True
         if highlight_atoms:
             highlight_colors = {idx: (0.13, 0.77, 0.53) for idx in highlight_atoms}
             drawer.DrawMolecule(mol, highlightAtoms=highlight_atoms, highlightAtomColors=highlight_colors)
         else:
             drawer.DrawMolecule(mol)
         drawer.FinishDrawing()
-        return drawer.GetDrawingText()
+        raw = drawer.GetDrawingText()
+        return re.sub(r'<\?xml.*?\?>', '', raw).strip()
     except Exception:
         try:
-            return Draw.MolToSVG(mol, size=size)
+            raw = Draw.MolToSVG(mol, size=size)
+            return re.sub(r'<\?xml.*?\?>', '', raw).strip()
         except Exception:
             return f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg"><text x="20" y="40" fill="#64748b">SVG rendering</text></svg>'
 
@@ -518,20 +522,27 @@ def generate_2d_depictions(mol: Chem.Mol, img_size=(450, 400)) -> Dict[str, Any]
     # 2. Stereochemical Wedge-and-Dash
     mol_stereo = Chem.Mol(mol_2d)
     Chem.AssignStereochemistry(mol_stereo, force=True, cleanIt=True)
+    try:
+        Chem.WedgeMolBonds(mol_stereo, mol_stereo.GetConformer())
+    except Exception:
+        pass
     chiral_centers = Chem.FindMolChiralCenters(mol_stereo, includeUnassigned=True)
     chiral_atom_indices = [c[0] for c in chiral_centers]
     
-    svg2 = _render_mol_svg(mol_stereo, size=(w, h), highlight_atoms=chiral_atom_indices)
-    png2 = _render_mol_png(mol_stereo, size=(w, h), highlight_atoms=chiral_atom_indices)
+    svg2 = _render_mol_svg(mol_stereo, size=(w, h), highlight_atoms=chiral_atom_indices if chiral_atom_indices else None)
+    png2 = _render_mol_png(mol_stereo, size=(w, h), highlight_atoms=chiral_atom_indices if chiral_atom_indices else None)
     depictions["wedge_dash"] = base64.b64encode(png2).decode('utf-8')
     depictions["wedge_dash_svg"] = svg2
     depictions["chiral_atoms_count"] = len(chiral_atom_indices)
+    depictions["chiral_centers"] = chiral_centers
     
     # 3. Explicit Atoms & Hs
     mol_explicit = Chem.AddHs(mol)
     AllChem.Compute2DCoords(mol_explicit)
+    svg3 = _render_mol_svg(mol_explicit, size=(w, h), explicit_methyl=True)
     png3 = _render_mol_png(mol_explicit, size=(w, h), explicit_methyl=True)
     depictions["explicit_atoms"] = base64.b64encode(png3).decode('utf-8')
+    depictions["explicit_atoms_svg"] = svg3
     
     # 4. Bemis-Murcko Scaffold
     try:

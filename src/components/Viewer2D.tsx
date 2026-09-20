@@ -63,22 +63,51 @@ export const Viewer2D: React.FC<Viewer2DProps> = ({
     },
   ];
 
-  const currentImageB64 = depictions[activeTab];
+  // Resilient resolution: maps every tab to its SVG with intelligent fallback to skeletal SVG
   const currentSvg =
     activeTab === 'skeletal'
-      ? depictions.skeletal_svg
+      ? (depictions.skeletal_svg || null)
       : activeTab === 'wedge_dash'
-      ? depictions.wedge_dash_svg
+      ? (depictions.wedge_dash_svg || depictions.skeletal_svg || null)
+      : activeTab === 'explicit_atoms'
+      ? (depictions.explicit_atoms_svg || depictions.skeletal_svg || null)
       : activeTab === 'murcko_scaffold'
-      ? depictions.murcko_scaffold_svg
-      : null;
+      ? (depictions.murcko_scaffold_svg || (depictions.has_scaffold ? depictions.skeletal_svg : null))
+      : (depictions.skeletal_svg || null);
+
+  const currentImageB64 = depictions[activeTab] || depictions.skeletal || '';
 
   const downloadPng = () => {
-    if (!currentImageB64) return;
-    const link = document.createElement('a');
-    link.href = `data:image/png;base64,${currentImageB64}`;
-    link.download = `${compoundName.replace(/\s+/g, '_')}_${activeTab}_2D.png`;
-    link.click();
+    if (currentImageB64) {
+      const link = document.createElement('a');
+      link.href = `data:image/png;base64,${currentImageB64}`;
+      link.download = `${compoundName.replace(/\s+/g, '_')}_${activeTab}_2D.png`;
+      link.click();
+      return;
+    }
+    if (currentSvg) {
+      const svgBlob = new Blob([currentSvg], { type: 'image/svg+xml;charset=utf-8' });
+      const blobURL = URL.createObjectURL(svgBlob);
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 900;
+        canvas.height = 800;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const pngUrl = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.href = pngUrl;
+          link.download = `${compoundName.replace(/\s+/g, '_')}_${activeTab}_2D.png`;
+          link.click();
+        }
+        URL.revokeObjectURL(blobURL);
+      };
+      img.src = blobURL;
+    }
   };
 
   const downloadSvg = () => {
@@ -203,7 +232,32 @@ export const Viewer2D: React.FC<Viewer2DProps> = ({
           </div>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center relative">
-            {currentSvg ? (
+            {activeTab === 'murcko_scaffold' && !depictions.has_scaffold ? (
+              <div className="flex flex-col items-center justify-center p-6 text-center max-w-sm mx-auto space-y-3 animate-in fade-in">
+                <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-xs">
+                  <GitBranch className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h5 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    Acyclic Compound (No Ring Scaffold)
+                  </h5>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Bemis-Murcko scaffold extraction decomposes molecules into ring assemblies and linkers. Since this compound contains no cyclic rings, no Murcko framework is defined.
+                  </p>
+                </div>
+                {depictions.skeletal_svg && (
+                  <div className="mt-1 p-2 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 opacity-75 max-w-[200px]">
+                    <span className="text-[10px] text-slate-400 font-mono uppercase tracking-wider block mb-1">
+                      Linear Molecule Structure
+                    </span>
+                    <div
+                      className="w-full h-24 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
+                      dangerouslySetInnerHTML={{ __html: depictions.skeletal_svg }}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : currentSvg ? (
               <div
                 className="w-full h-full max-h-[340px] flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-h-[320px] transition-all"
                 dangerouslySetInnerHTML={{ __html: currentSvg }}
@@ -216,24 +270,40 @@ export const Viewer2D: React.FC<Viewer2DProps> = ({
               />
             ) : (
               <div className="text-center p-6 text-slate-400">
-                <p className="text-xs">No scaffold or representation available for this molecule.</p>
+                <p className="text-xs">No depiction available for this molecule.</p>
               </div>
             )}
 
             {/* Chiral badge indicator */}
-            {activeTab === 'wedge_dash' && depictions.chiral_atoms_count !== undefined && (
+            {activeTab === 'wedge_dash' && (
               <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5 shadow-xs">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span>
-                  {depictions.chiral_atoms_count > 0
-                    ? `${depictions.chiral_atoms_count} Chiral Stereocenter(s) Highlighted`
-                    : 'Achiral (No stereocenters)'}
+                  {depictions.chiral_atoms_count && depictions.chiral_atoms_count > 0
+                    ? `${depictions.chiral_atoms_count} Chiral Stereocenter(s) Highlighted (Emerald)`
+                    : 'Achiral Molecule (No stereocenters / Symmetric)'}
                 </span>
               </div>
             )}
 
+            {/* Explicit Hs badge indicator */}
+            {activeTab === 'explicit_atoms' && (
+              <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-full bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 text-[10px] font-semibold text-teal-700 dark:text-teal-300 flex items-center gap-1.5 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+                <span>Explicit Hydrogens & Terminal Methyls Included</span>
+              </div>
+            )}
+
+            {/* Skeletal badge indicator */}
+            {activeTab === 'skeletal' && (
+              <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 shadow-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                <span>Standard Skeletal (Kekulé / Line-Angle)</span>
+              </div>
+            )}
+
             {/* Bemis-Murcko badge */}
-            {activeTab === 'murcko_scaffold' && depictions.scaffold_smiles && (
+            {activeTab === 'murcko_scaffold' && depictions.has_scaffold && depictions.scaffold_smiles && (
               <div className="absolute bottom-2 left-2 right-2 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-600 dark:text-slate-300 font-mono truncate shadow-xs">
                 Scaffold: {depictions.scaffold_smiles}
               </div>
@@ -265,7 +335,25 @@ export const Viewer2D: React.FC<Viewer2DProps> = ({
             </div>
 
             <div className="flex items-center justify-center p-4 min-h-[380px] bg-slate-50 dark:bg-slate-950/40 rounded-xl">
-              {currentSvg ? (
+              {activeTab === 'murcko_scaffold' && !depictions.has_scaffold ? (
+                <div className="flex flex-col items-center justify-center p-6 text-center max-w-sm mx-auto space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400 shadow-xs">
+                    <GitBranch className="w-6 h-6" />
+                  </div>
+                  <h5 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    Acyclic Compound (No Ring Scaffold)
+                  </h5>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Bemis-Murcko scaffold extraction requires cyclic rings. This molecule has no rings, so no scaffold is defined.
+                  </p>
+                  {depictions.skeletal_svg && (
+                    <div
+                      className="w-48 h-32 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full opacity-70"
+                      dangerouslySetInnerHTML={{ __html: depictions.skeletal_svg }}
+                    />
+                  )}
+                </div>
+              ) : currentSvg ? (
                 <div
                   className="w-full max-h-[460px] flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:max-h-[440px]"
                   dangerouslySetInnerHTML={{ __html: currentSvg }}
