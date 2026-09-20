@@ -48,86 +48,112 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ conformer, compoundName }) =
 
   // Apply representation styles and surface overlays to the 3Dmol viewer
   const updateViewerDisplay = useCallback(() => {
-    const viewer = viewerInstanceRef.current;
-    if (!viewer) return;
+    try {
+      const viewer = viewerInstanceRef.current;
+      if (!viewer) return;
 
-    viewer.removeAllSurfaces();
-    viewer.removeAllShapes();
+      viewer.removeAllSurfaces();
+      viewer.removeAllShapes();
 
-    // Hydrogen filter
-    const atomFilter = showHydrogens
-      ? {}
-      : { elem: ['C', 'N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'B', 'Si', 'Fe', 'Zn'] };
+      // Hydrogen filter
+      const atomFilter = showHydrogens
+        ? {}
+        : { elem: ['C', 'N', 'O', 'S', 'P', 'F', 'Cl', 'Br', 'I', 'B', 'Si', 'Fe', 'Zn'] };
 
-    // 1. Apply Model representation mode
-    switch (modelMode) {
-      case 'wireframe':
-        viewer.setStyle({}, { line: { hidden: true } });
-        viewer.setStyle(atomFilter, { line: { colorscheme: 'element', linewidth: 2.0 } });
-        break;
-      case 'stick':
-        viewer.setStyle({}, { stick: { hidden: true } });
-        viewer.setStyle(atomFilter, { stick: { colorscheme: 'element', radius: 0.22 } });
-        break;
-      case 'sphere':
-        viewer.setStyle({}, { sphere: { hidden: true } });
-        viewer.setStyle(atomFilter, { sphere: { colorscheme: 'element' } });
-        break;
-      case 'cartoon':
-        viewer.setStyle({}, { cartoon: { color: 'spectrum' }, stick: { radius: 0.12 } });
-        break;
-      case 'ball_stick':
-      default:
-        viewer.setStyle({}, { stick: { hidden: true }, sphere: { hidden: true } });
-        viewer.setStyle(atomFilter, {
-          stick: { colorscheme: 'element', radius: 0.16 },
-          sphere: { colorscheme: 'element', scale: 0.28 },
-        });
-        break;
-    }
-
-    if (!showHydrogens) {
-      viewer.setStyle({ elem: 'H' }, { hidden: true });
-    }
-
-    // 2. Apply Surface Overlays
-    const $3Dmol = window.$3Dmol;
-    if ($3Dmol && surfaceType !== 'none') {
-      try {
-        if (surfaceType === 'vdw') {
-          viewer.addSurface($3Dmol.SurfaceType.VDW, {
-            opacity: surfaceOpacity,
-            color: 'white',
-          });
-        } else if (surfaceType === 'sas') {
-          viewer.addSurface($3Dmol.SurfaceType.SAS, {
-            opacity: surfaceOpacity,
-            color: '#0ea5e9',
-          });
-        } else if (surfaceType === 'ses') {
-          viewer.addSurface($3Dmol.SurfaceType.SES, {
-            opacity: surfaceOpacity,
-            color: '#14b8a6',
-          });
-        } else if (surfaceType === 'esp') {
-          // Electrostatic potential mapping with Gasteiger partial charges
-          const colorFunc = (atom: any) => {
-            const charge = atom.properties?.charge || 0.0;
-            if (charge < -0.15) return '#ef4444'; // Negative = red
-            if (charge > 0.15) return '#3b82f6';  // Positive = blue
-            return '#f1f5f9';                     // Neutral = light slate
-          };
-          viewer.addSurface($3Dmol.SurfaceType.VDW, {
-            opacity: surfaceOpacity,
-            colorscheme: { prop: 'charge', map: colorFunc },
-          });
+      // 1. Apply Model representation mode
+      switch (modelMode) {
+        case 'wireframe':
+          viewer.setStyle({}, { line: { hidden: true } });
+          viewer.setStyle(atomFilter, { line: { colorscheme: 'element', linewidth: 2.0 } });
+          break;
+        case 'stick':
+          viewer.setStyle({}, { stick: { hidden: true } });
+          viewer.setStyle(atomFilter, { stick: { colorscheme: 'element', radius: 0.22 } });
+          break;
+        case 'sphere':
+          viewer.setStyle({}, { sphere: { hidden: true } });
+          viewer.setStyle(atomFilter, { sphere: { colorscheme: 'element' } });
+          break;
+        case 'cartoon': {
+          // 3Dmol cartoon requires alpha-carbon PDB residues.
+          // For small molecules without residues, render a smooth tubular ribbon to avoid WebGL TypeError!
+          const atoms = viewer.selectedAtoms({});
+          const hasResidues = atoms.some(
+            (a: any) => a.resi !== undefined && a.resi !== null && a.atom === 'CA'
+          );
+          if (hasResidues) {
+            try {
+              viewer.setStyle({}, { cartoon: { color: 'spectrum' } });
+            } catch {
+              viewer.setStyle(atomFilter, {
+                stick: { colorscheme: 'element', radius: 0.32 },
+              });
+            }
+          } else {
+            // Smooth continuous tubular ribbon style for small molecules
+            viewer.setStyle({}, { stick: { hidden: true }, sphere: { hidden: true } });
+            viewer.setStyle(atomFilter, {
+              stick: { colorscheme: 'element', radius: 0.34 },
+              sphere: { colorscheme: 'element', scale: 0.35 },
+            });
+          }
+          break;
         }
-      } catch (err) {
-        console.warn('Surface generation warning:', err);
+        case 'ball_stick':
+        default:
+          viewer.setStyle({}, { stick: { hidden: true }, sphere: { hidden: true } });
+          viewer.setStyle(atomFilter, {
+            stick: { colorscheme: 'element', radius: 0.16 },
+            sphere: { colorscheme: 'element', scale: 0.28 },
+          });
+          break;
       }
-    }
 
-    viewer.render();
+      if (!showHydrogens) {
+        viewer.setStyle({ elem: 'H' }, { hidden: true });
+      }
+
+      // 2. Apply Surface Overlays
+      const $3Dmol = window.$3Dmol;
+      if ($3Dmol && surfaceType !== 'none') {
+        try {
+          if (surfaceType === 'vdw') {
+            viewer.addSurface($3Dmol.SurfaceType.VDW, {
+              opacity: surfaceOpacity,
+              color: 'white',
+            });
+          } else if (surfaceType === 'sas') {
+            viewer.addSurface($3Dmol.SurfaceType.SAS, {
+              opacity: surfaceOpacity,
+              color: '#0ea5e9',
+            });
+          } else if (surfaceType === 'ses') {
+            viewer.addSurface($3Dmol.SurfaceType.SES, {
+              opacity: surfaceOpacity,
+              color: '#14b8a6',
+            });
+          } else if (surfaceType === 'esp') {
+            // Electrostatic potential mapping with Gasteiger partial charges
+            const colorFunc = (atom: any) => {
+              const charge = atom.properties?.charge || 0.0;
+              if (charge < -0.15) return '#ef4444'; // Negative = red
+              if (charge > 0.15) return '#3b82f6';  // Positive = blue
+              return '#f1f5f9';                     // Neutral = light slate
+            };
+            viewer.addSurface($3Dmol.SurfaceType.VDW, {
+              opacity: surfaceOpacity,
+              colorscheme: { prop: 'charge', map: colorFunc },
+            });
+          }
+        } catch (err) {
+          console.warn('Surface generation safely handled:', err);
+        }
+      }
+
+      viewer.render();
+    } catch (err) {
+      console.warn('3Dmol display update safely handled:', err);
+    }
   }, [modelMode, surfaceType, surfaceOpacity, showHydrogens]);
 
   // Initialize or re-render 3Dmol viewer when conformer changes or minimization toggles
@@ -135,50 +161,54 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ conformer, compoundName }) =
     let isCancelled = false;
 
     const checkAndInit = () => {
-      if (typeof window === 'undefined' || !containerRef.current) return;
-      const $3Dmol = window.$3Dmol;
+      try {
+        if (typeof window === 'undefined' || !containerRef.current) return;
+        const $3Dmol = window.$3Dmol;
 
-      if (!$3Dmol) {
-        setTimeout(checkAndInit, 150);
-        return;
-      }
-
-      if (isCancelled) return;
-
-      containerRef.current.innerHTML = '';
-
-      const bgColor = canvasBgDark ? '#090d16' : '#f8fafc';
-      const viewer = $3Dmol.createViewer(containerRef.current, {
-        backgroundColor: bgColor,
-        defaultcolors: $3Dmol.rasmolElementColors,
-      });
-
-      viewerInstanceRef.current = viewer;
-
-      const activeMolblock =
-        !showMinimized && conformer.unminimized_molblock
-          ? conformer.unminimized_molblock
-          : conformer.molblock;
-
-      if (activeMolblock) {
-        viewer.addModel(activeMolblock, 'mol');
-
-        // Assign partial charges to atoms for ESP mapping
-        if (conformer.atoms && conformer.atoms.length > 0) {
-          const model = viewer.getModel();
-          if (model) {
-            const atoms = model.selectedAtoms({});
-            conformer.atoms.forEach((ad, i) => {
-              if (atoms[i]) {
-                atoms[i].properties = { charge: ad.charge };
-              }
-            });
-          }
+        if (!$3Dmol) {
+          setTimeout(checkAndInit, 150);
+          return;
         }
 
-        viewer.zoomTo();
-        setIsViewerReady(true);
-        updateViewerDisplay();
+        if (isCancelled) return;
+
+        containerRef.current.innerHTML = '';
+
+        const bgColor = canvasBgDark ? '#090d16' : '#f8fafc';
+        const viewer = $3Dmol.createViewer(containerRef.current, {
+          backgroundColor: bgColor,
+          defaultcolors: $3Dmol.rasmolElementColors,
+        });
+
+        viewerInstanceRef.current = viewer;
+
+        const activeMolblock =
+          !showMinimized && conformer.unminimized_molblock
+            ? conformer.unminimized_molblock
+            : conformer.molblock;
+
+        if (activeMolblock) {
+          viewer.addModel(activeMolblock, 'mol');
+
+          // Assign partial charges to atoms for ESP mapping
+          if (conformer.atoms && conformer.atoms.length > 0) {
+            const model = viewer.getModel();
+            if (model) {
+              const atoms = model.selectedAtoms({});
+              conformer.atoms.forEach((ad, i) => {
+                if (atoms[i]) {
+                  atoms[i].properties = { charge: ad.charge };
+                }
+              });
+            }
+          }
+
+          viewer.zoomTo();
+          setIsViewerReady(true);
+          updateViewerDisplay();
+        }
+      } catch (err) {
+        console.warn('3Dmol initialization error handled:', err);
       }
     };
 
@@ -205,30 +235,42 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ conformer, compoundName }) =
 
   // Handle spinning
   useEffect(() => {
-    const viewer = viewerInstanceRef.current;
-    if (!viewer) return;
+    try {
+      const viewer = viewerInstanceRef.current;
+      if (!viewer) return;
 
-    if (isSpinning) {
-      viewer.spin('y', 0.8);
-    } else {
-      viewer.spin(false);
+      if (isSpinning) {
+        viewer.spin('y', 0.8);
+      } else {
+        viewer.spin(false);
+      }
+    } catch (err) {
+      console.warn('Spin error safely handled:', err);
     }
   }, [isSpinning]);
 
   const handleResetView = () => {
-    if (viewerInstanceRef.current) {
-      viewerInstanceRef.current.zoomTo();
-      viewerInstanceRef.current.render();
+    try {
+      if (viewerInstanceRef.current) {
+        viewerInstanceRef.current.zoomTo();
+        viewerInstanceRef.current.render();
+      }
+    } catch (err) {
+      console.warn('Reset view error safely handled:', err);
     }
   };
 
   const handleSnapshot = () => {
-    const canvas = containerRef.current?.querySelector('canvas');
-    if (canvas) {
-      const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = `${compoundName.replace(/\s+/g, '_')}_3D_Structure.png`;
-      link.click();
+    try {
+      const canvas = containerRef.current?.querySelector('canvas');
+      if (canvas) {
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = `${compoundName.replace(/\s+/g, '_')}_3D_Structure.png`;
+        link.click();
+      }
+    } catch (err) {
+      console.warn('Snapshot error safely handled:', err);
     }
   };
 
@@ -331,18 +373,24 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({ conformer, compoundName }) =
           {/* Representation Style Pills */}
           <div className="flex items-center gap-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Style:</span>
-            {(['ball_stick', 'stick', 'sphere', 'cartoon', 'wireframe'] as ModelMode[]).map((mode) => (
+            {([
+              { id: 'ball_stick', label: 'Ball & Stick' },
+              { id: 'stick', label: 'Stick' },
+              { id: 'sphere', label: 'Sphere' },
+              { id: 'cartoon', label: 'Tube / Ribbon' },
+              { id: 'wireframe', label: 'Wireframe' },
+            ] as { id: ModelMode; label: string }[]).map((item) => (
               <button
-                key={mode}
+                key={item.id}
                 type="button"
-                onClick={() => setModelMode(mode)}
+                onClick={() => setModelMode(item.id)}
                 className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider transition-all ${
-                  modelMode === mode
+                  modelMode === item.id
                     ? 'bg-teal-600 text-white shadow-2xs'
                     : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                 }`}
               >
-                {mode.replace('_', ' ')}
+                {item.label}
               </button>
             ))}
           </div>
